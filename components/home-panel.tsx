@@ -37,6 +37,8 @@ export function HomePanel() {
   const [mode, setMode] = useState<QuickLogMode>('home')
   const [confirmation, setConfirmation] = useState<ConfirmationType>(null)
   const [confirmationDetail, setConfirmationDetail] = useState<string>('')
+  const [customBreastMinutes, setCustomBreastMinutes] = useState('')
+  const [customFormulaMl, setCustomFormulaMl] = useState('')
   const [, setTick] = useState(0)
 
   // Update "time since" every 30 seconds
@@ -67,6 +69,7 @@ export function HomePanel() {
     })
     setConfirmation('breast')
     setConfirmationDetail(`${minutes}m`)
+    setCustomBreastMinutes('')
     setMode('home')
   }, [storage])
 
@@ -78,6 +81,7 @@ export function HomePanel() {
     })
     setConfirmation('formula')
     setConfirmationDetail(`${volumeMl}ml`)
+    setCustomFormulaMl('')
     setMode('home')
   }, [storage])
 
@@ -88,6 +92,25 @@ export function HomePanel() {
     })
     setConfirmation(type)
   }, [storage])
+
+  const handleCustomBreastLog = useCallback(async () => {
+    const minutes = Number(customBreastMinutes)
+    if (!Number.isFinite(minutes) || minutes <= 0) return
+
+    await handleBreastLog(Math.round(minutes))
+  }, [customBreastMinutes, handleBreastLog])
+
+  const handleCustomFormulaLog = useCallback(async () => {
+    const volumeMl = Number(customFormulaMl)
+    if (!Number.isFinite(volumeMl) || volumeMl <= 0) return
+
+    await handleFormulaLog(Math.round(volumeMl))
+  }, [customFormulaMl, handleFormulaLog])
+
+  const customBreastValue = Number(customBreastMinutes)
+  const customFormulaValue = Number(customFormulaMl)
+  const canLogCustomBreast = Number.isFinite(customBreastValue) && customBreastValue > 0
+  const canLogCustomFormula = Number.isFinite(customFormulaValue) && customFormulaValue > 0
 
   // Confirmation toast overlay
   const ConfirmationToast = () => {
@@ -141,6 +164,47 @@ export function HomePanel() {
           ))}
         </div>
 
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            handleCustomBreastLog()
+          }}
+          className="flex flex-col gap-3 rounded-2xl bg-muted/30 border border-muted/50 p-4"
+        >
+          <label htmlFor="custom-breast-minutes" className="text-sm text-muted-foreground">
+            Custom time
+          </label>
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <input
+                id="custom-breast-minutes"
+                type="number"
+                inputMode="numeric"
+                min="1"
+                step="1"
+                value={customBreastMinutes}
+                onChange={(event) => setCustomBreastMinutes(event.target.value)}
+                className="h-14 w-full rounded-xl bg-background border border-border px-4 pr-14 text-xl text-foreground
+                           placeholder:text-muted-foreground/50
+                           focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50"
+                placeholder="12"
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                min
+              </span>
+            </div>
+            <button
+              type="submit"
+              disabled={!canLogCustomBreast}
+              className="h-14 px-5 rounded-xl bg-sky-500 text-white font-semibold
+                         hover:bg-sky-400 active:scale-[0.98] transition-all
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Log
+            </button>
+          </div>
+        </form>
+
         <button
           onClick={() => setMode('home')}
           className="text-muted-foreground py-4 text-base font-medium
@@ -177,6 +241,47 @@ export function HomePanel() {
             </button>
           ))}
         </div>
+
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            handleCustomFormulaLog()
+          }}
+          className="flex flex-col gap-3 rounded-2xl bg-muted/30 border border-muted/50 p-4"
+        >
+          <label htmlFor="custom-formula-ml" className="text-sm text-muted-foreground">
+            Custom amount
+          </label>
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <input
+                id="custom-formula-ml"
+                type="number"
+                inputMode="numeric"
+                min="1"
+                step="1"
+                value={customFormulaMl}
+                onChange={(event) => setCustomFormulaMl(event.target.value)}
+                className="h-14 w-full rounded-xl bg-background border border-border px-4 pr-12 text-xl text-foreground
+                           placeholder:text-muted-foreground/50
+                           focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50"
+                placeholder="75"
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                ml
+              </span>
+            </div>
+            <button
+              type="submit"
+              disabled={!canLogCustomFormula}
+              className="h-14 px-5 rounded-xl bg-amber-500 text-white font-semibold
+                         hover:bg-amber-400 active:scale-[0.98] transition-all
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Log
+            </button>
+          </div>
+        </form>
 
         <button
           onClick={() => setMode('home')}
