@@ -8,7 +8,7 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: 'Baby Tracker',
-  description: 'Track feeds, nappies, and appointments for your newborn',
+  description: 'Track feeds, nappies, and analytics for your newborn',
   generator: 'v0.app',
   icons: {
     icon: [

@@ -1,5 +1,4 @@
 import type {
-  Appointment,
   DailySummary,
   FeedEntry,
   IStorage,
@@ -26,12 +25,6 @@ function hydrateNappy(nappy: NappyEntry): NappyEntry {
   }
 }
 
-function hydrateAppointment(appointment: Appointment): Appointment {
-  return {
-    ...appointment,
-    dateTime: toDate(appointment.dateTime),
-  }
-}
 
 function hydrateSummary(summary: DailySummary): DailySummary {
   return {
@@ -125,34 +118,6 @@ class ApiStorage implements IStorage {
   async deleteNappy(id: string): Promise<void> {
     await fetchJson(`/api/nappies/${encodeURIComponent(id)}`, { method: 'DELETE' })
     this.notify()
-  }
-
-  async addAppointment(appointment: Omit<Appointment, 'id'>): Promise<Appointment> {
-    const saved = await fetchJson<Appointment>('/api/appointments', {
-      method: 'POST',
-      body: JSON.stringify(appointment),
-    })
-    this.notify()
-    return hydrateAppointment(saved)
-  }
-
-  async updateAppointment(id: string, updates: Partial<Appointment>): Promise<Appointment> {
-    const saved = await fetchJson<Appointment>(`/api/appointments/${encodeURIComponent(id)}`, {
-      method: 'PATCH',
-      body: JSON.stringify(updates),
-    })
-    this.notify()
-    return hydrateAppointment(saved)
-  }
-
-  async deleteAppointment(id: string): Promise<void> {
-    await fetchJson(`/api/appointments/${encodeURIComponent(id)}`, { method: 'DELETE' })
-    this.notify()
-  }
-
-  async getAppointments(): Promise<Appointment[]> {
-    const appointments = await fetchJson<Appointment[]>('/api/appointments')
-    return appointments.map(hydrateAppointment)
   }
 
   async getDailySummary(): Promise<DailySummary> {

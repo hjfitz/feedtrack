@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { getStorage } from '@/lib/storage'
-import type { FeedEntry, NappyEntry, Appointment, DailySummary } from '@/lib/types'
+import type { FeedEntry, NappyEntry, DailySummary } from '@/lib/types'
 
 export function useStorage() {
   const [, setTick] = useState(0)
@@ -68,24 +68,6 @@ export function useNappies(since?: Date) {
   return { nappies, loading, refresh }
 }
 
-export function useAppointments() {
-  const storage = useStorage()
-  const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [loading, setLoading] = useState(true)
-
-  const refresh = useCallback(async () => {
-    const data = await storage.getAppointments()
-    setAppointments(data)
-    setLoading(false)
-  }, [storage])
-
-  useEffect(() => {
-    refresh()
-    return storage.subscribe(refresh)
-  }, [storage, refresh])
-
-  return { appointments, loading, refresh }
-}
 
 export function useSummary(mode: 'today' | 'hours', hours = 24) {
   const storage = useStorage()

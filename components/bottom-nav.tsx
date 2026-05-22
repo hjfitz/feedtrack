@@ -2,12 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { CalendarDays, Clock3, Home, Settings } from 'lucide-react'
+import { BarChart2, Clock3, Home, Settings } from 'lucide-react'
 
 const tabs = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/history', label: 'History', icon: Clock3 },
-  { href: '/appointments', label: 'Appts', icon: CalendarDays },
+  { href: '/analytics', label: 'Analytics', icon: BarChart2 },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
 

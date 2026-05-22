@@ -15,7 +15,7 @@ import {
   setUser,
 } from '@/lib/server/blob-storage'
 import { calculateSummary } from '@/lib/server/summaries'
-import type { Appointment, DailySummary, FeedEntry, FeedType, NappyEntry, NappyType } from '@/lib/types'
+import type { DailySummary, FeedEntry, FeedType, NappyEntry, NappyType } from '@/lib/types'
 
 const INVITE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
@@ -58,9 +58,6 @@ function sortNappies(nappies: NappyEntry[]) {
   return nappies.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 }
 
-function sortAppointments(appointments: Appointment[]) {
-  return appointments.sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime())
-}
 
 export async function getFeeds(householdId: string, since?: Date | null) {
   const feeds = sortFeeds(await getHouseholdData(householdId, 'feeds'))
@@ -72,9 +69,6 @@ export async function getNappies(householdId: string, since?: Date | null) {
   return since ? nappies.filter(nappy => new Date(nappy.timestamp).getTime() >= since.getTime()) : nappies
 }
 
-export async function getAppointments(householdId: string) {
-  return sortAppointments(await getHouseholdData(householdId, 'appointments'))
-}
 
 export async function getTodaySummary(householdId: string): Promise<DailySummary> {
   const now = new Date()
@@ -229,61 +223,6 @@ export async function deleteNappy(householdId: string, id: string) {
   await setHouseholdData(householdId, 'nappies', nappies.filter(nappy => nappy.id !== id))
 }
 
-export async function addAppointment(
-  householdId: string,
-  input: { title?: unknown; dateTime?: unknown; notes?: unknown; isPast?: unknown }
-) {
-  const title = typeof input.title === 'string' ? input.title.trim() : ''
-  const dateTime = parseDate(input.dateTime)
-
-  if (!title) throw new AppError('Appointment title is required')
-  if (!dateTime) throw new AppError('Valid appointment time is required')
-
-  const appointment: Appointment = {
-    id: generateId(),
-    title,
-    dateTime,
-    notes: typeof input.notes === 'string' && input.notes ? input.notes : undefined,
-    isPast: Boolean(input.isPast),
-  }
-
-  const appointments = await getHouseholdData(householdId, 'appointments')
-  await setHouseholdData(householdId, 'appointments', sortAppointments([...appointments, appointment]))
-  return appointment
-}
-
-export async function updateAppointment(householdId: string, id: string, input: Partial<Appointment>) {
-  const appointments = await getHouseholdData(householdId, 'appointments')
-  const index = appointments.findIndex(appointment => appointment.id === id)
-
-  if (index === -1) {
-    throw new AppError('Appointment not found', 404)
-  }
-
-  const updates: Partial<Omit<Appointment, 'id'>> = {}
-  if (typeof input.title === 'string') updates.title = input.title.trim()
-  if (typeof input.notes === 'string') updates.notes = input.notes || undefined
-  if (typeof input.isPast === 'boolean') updates.isPast = input.isPast
-  if (input.dateTime) {
-    const dateTime = parseDate(input.dateTime)
-    if (!dateTime) throw new AppError('Valid appointment time is required')
-    updates.dateTime = dateTime
-  }
-
-  const nextAppointment = { ...appointments[index], ...updates }
-  appointments[index] = nextAppointment
-  await setHouseholdData(householdId, 'appointments', sortAppointments(appointments))
-  return nextAppointment
-}
-
-export async function deleteAppointment(householdId: string, id: string) {
-  const appointments = await getHouseholdData(householdId, 'appointments')
-  await setHouseholdData(
-    householdId,
-    'appointments',
-    appointments.filter(appointment => appointment.id !== id)
-  )
-}
 
 export async function signupUser(usernameInput: string, password: string, inviteCodeInput?: string) {
   const username = normalizeUsername(usernameInput)

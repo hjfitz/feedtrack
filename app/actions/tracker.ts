@@ -3,13 +3,10 @@
 import { revalidatePath } from 'next/cache'
 import { requireSessionHouseholdId } from '@/lib/server/auth'
 import {
-  addAppointment,
   addFeed,
   addNappy,
-  deleteAppointment,
   deleteFeed,
   deleteNappy,
-  updateAppointment,
   updateFeed,
   updateNappy,
 } from '@/lib/server/tracker'
@@ -88,30 +85,3 @@ export async function deleteNappyAction(formData: FormData) {
   revalidateTrackerPages()
 }
 
-export async function addAppointmentAction(formData: FormData) {
-  const householdId = await requireSessionHouseholdId()
-  await addAppointment(householdId, {
-    title: getString(formData, 'title'),
-    dateTime: getString(formData, 'dateTime'),
-    notes: getString(formData, 'notes'),
-    isPast: formData.get('isPast') === 'on',
-  })
-  revalidatePath('/appointments')
-}
-
-export async function updateAppointmentAction(formData: FormData) {
-  const householdId = await requireSessionHouseholdId()
-  await updateAppointment(householdId, getString(formData, 'id'), {
-    title: getString(formData, 'title'),
-    dateTime: new Date(getString(formData, 'dateTime')),
-    notes: getString(formData, 'notes'),
-    isPast: formData.get('isPast') === 'on',
-  })
-  revalidatePath('/appointments')
-}
-
-export async function deleteAppointmentAction(formData: FormData) {
-  const householdId = await requireSessionHouseholdId()
-  await deleteAppointment(householdId, getString(formData, 'id'))
-  revalidatePath('/appointments')
-}

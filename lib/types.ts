@@ -22,14 +22,6 @@ export interface NappyEntry {
   notes?: string
 }
 
-export interface Appointment {
-  id: string
-  title: string
-  dateTime: Date
-  notes?: string
-  isPast: boolean
-}
-
 export interface DailySummary {
   date: Date
   feedCount: number
@@ -56,12 +48,6 @@ export interface IStorage {
   getNappies(since?: Date): Promise<NappyEntry[]>
   updateNappy(id: string, updates: Partial<NappyEntry>): Promise<NappyEntry>
   deleteNappy(id: string): Promise<void>
-  
-  // Appointments
-  addAppointment(appointment: Omit<Appointment, 'id'>): Promise<Appointment>
-  updateAppointment(id: string, updates: Partial<Appointment>): Promise<Appointment>
-  deleteAppointment(id: string): Promise<void>
-  getAppointments(): Promise<Appointment[]>
   
   // Summary
   getDailySummary(date: Date): Promise<DailySummary>

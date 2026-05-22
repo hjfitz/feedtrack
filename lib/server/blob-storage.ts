@@ -1,5 +1,5 @@
 import { getStore } from '@netlify/blobs'
-import type { Appointment, FeedEntry, NappyEntry } from '@/lib/types'
+import type { FeedEntry, NappyEntry } from '@/lib/types'
 
 export interface StoredUser {
   id: string
@@ -18,10 +18,9 @@ export interface HouseholdMeta {
 interface StoredHouseholdData {
   feeds: FeedEntry[]
   nappies: NappyEntry[]
-  appointments: Appointment[]
 }
 
-type StoreValue = StoredUser | InviteRecord | HouseholdMeta | FeedEntry[] | NappyEntry[] | Appointment[]
+type StoreValue = StoredUser | InviteRecord | HouseholdMeta | FeedEntry[] | NappyEntry[]
 
 interface JsonStore {
   get<T>(key: string): Promise<T | null>
@@ -152,12 +151,6 @@ export async function getHouseholdData<K extends keyof StoredHouseholdData>(
     })) as unknown as StoredHouseholdData[K]
   }
 
-  if (type === 'appointments') {
-    return (value as Appointment[]).map(appointment => ({
-      ...appointment,
-      dateTime: new Date(appointment.dateTime),
-    })) as unknown as StoredHouseholdData[K]
-  }
 
   return value
 }
@@ -175,6 +168,5 @@ export async function initializeHousehold(householdId: string, inviteCode: strin
     setHouseholdMeta(householdId, { inviteCode }),
     setHouseholdData(householdId, 'feeds', []),
     setHouseholdData(householdId, 'nappies', []),
-    setHouseholdData(householdId, 'appointments', []),
   ])
 }
