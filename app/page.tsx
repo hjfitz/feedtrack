@@ -6,8 +6,9 @@ import { useAuth } from '@/hooks/use-auth'
 import { HomePanel } from '@/components/home-panel'
 import { HistoryPanel } from '@/components/history-panel'
 import { AppointmentsPanel } from '@/components/appointments-panel'
+import { SettingsPanel } from '@/components/settings-panel'
 
-type Tab = 'home' | 'history' | 'appts'
+type Tab = 'home' | 'history' | 'appts' | 'settings'
 
 const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
   {
@@ -37,14 +38,22 @@ const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
       </svg>
     ),
   },
+  {
+    id: 'settings',
+    label: 'Settings',
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.872.074.042.148.085.22.129.324.197.724.257 1.062.121l1.166-.466a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.431.992a7.723 7.723 0 0 1 0 .255c-.007.379.138.751.431.992l1.003.827c.424.35.534.955.26 1.431l-1.296 2.247a1.125 1.125 0 0 1-1.37.49l-1.166-.466c-.338-.136-.738-.076-1.062.121a6.047 6.047 0 0 1-.22.129c-.332.186-.582.498-.645.872l-.213 1.281c-.09.542-.56.94-1.11.94h-2.593c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.063-.374-.313-.686-.645-.872a6.047 6.047 0 0 1-.22-.129c-.324-.197-.724-.257-1.062-.121l-1.166.466a1.125 1.125 0 0 1-1.37-.49l-1.296-2.247a1.125 1.125 0 0 1 .26-1.431l1.003-.827c.293-.241.438-.613.431-.992a7.723 7.723 0 0 1 0-.255c.007-.379-.138-.751-.431-.992l-1.003-.827a1.125 1.125 0 0 1-.26-1.431l1.296-2.247a1.125 1.125 0 0 1 1.37-.49l1.166.466c.338.136.738.076 1.062-.121.072-.044.146-.087.22-.129.332-.186.582-.498.645-.872l.213-1.281Z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+      </svg>
+    ),
+  },
 ]
 
 export default function BabyTrackerApp() {
   const router = useRouter()
-  const { authenticated, loading, inviteCode, logout } = useAuth()
+  const { authenticated, loading } = useAuth()
   const [activeTab, setActiveTab] = useState<Tab>('home')
-  const [showInvite, setShowInvite] = useState(false)
-  const [copied, setCopied] = useState(false)
 
   // Show loading state
   if (loading) {
@@ -64,72 +73,20 @@ export default function BabyTrackerApp() {
     return null
   }
 
-  const handleCopyInvite = async () => {
-    if (inviteCode) {
-      await navigator.clipboard.writeText(inviteCode)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
-
-  const handleLogout = async () => {
-    await logout()
-    router.push('/login')
-  }
-
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Header */}
       <header className="flex-none px-4 pt-12 pb-4">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground">Baby Tracker</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {new Date().toLocaleDateString('en-GB', { 
-                weekday: 'long', 
-                day: 'numeric', 
-                month: 'long' 
-              })}
-            </p>
-          </div>
-          <button
-            onClick={() => setShowInvite(!showInvite)}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/50 border border-muted text-muted-foreground
-                       hover:bg-muted hover:text-foreground transition-all"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
-            </svg>
-            <span className="text-sm font-medium">Share</span>
-          </button>
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Baby Tracker</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {new Date().toLocaleDateString('en-GB', { 
+              weekday: 'long', 
+              day: 'numeric', 
+              month: 'long' 
+            })}
+          </p>
         </div>
-
-        {/* Invite code dropdown */}
-        {showInvite && (
-          <div className="mt-4 rounded-xl bg-muted/50 border border-muted p-4 animate-in fade-in slide-in-from-top-2 duration-200">
-            <p className="text-sm text-muted-foreground mb-2">Share this code with your partner:</p>
-            <div className="flex items-center gap-3">
-              <code className="flex-1 py-3 px-4 rounded-lg bg-background border border-border text-lg font-mono tracking-widest text-center text-foreground">
-                {inviteCode}
-              </code>
-              <button
-                onClick={handleCopyInvite}
-                className="px-4 py-3 rounded-lg bg-sky-500 text-white font-medium
-                           hover:bg-sky-400 active:scale-95 transition-all"
-              >
-                {copied ? 'Copied!' : 'Copy'}
-              </button>
-            </div>
-            <div className="mt-4 pt-4 border-t border-border flex justify-end">
-              <button
-                onClick={handleLogout}
-                className="text-sm text-muted-foreground hover:text-red-400 transition-colors"
-              >
-                Sign out
-              </button>
-            </div>
-          </div>
-        )}
       </header>
 
       {/* Main content */}
@@ -137,6 +94,7 @@ export default function BabyTrackerApp() {
         {activeTab === 'home' && <HomePanel />}
         {activeTab === 'history' && <HistoryPanel />}
         {activeTab === 'appts' && <AppointmentsPanel />}
+        {activeTab === 'settings' && <SettingsPanel />}
       </main>
 
       {/* Bottom navigation */}

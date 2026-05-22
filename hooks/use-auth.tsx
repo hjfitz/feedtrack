@@ -1,11 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
-
-/**
- * Simple localStorage-based auth for development
- * Can be replaced with server-side auth (Supabase, NextAuth, etc.) later
- */
+import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react'
 
 interface AuthState {
   authenticated: boolean
@@ -19,85 +14,39 @@ interface AuthContextType extends AuthState {
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>
   signup: (username: string, password: string) => Promise<{ success: boolean; error?: string }>
   join: (inviteCode: string) => Promise<{ success: boolean; error?: string }>
+  generateInviteCode: () => Promise<{ success: boolean; inviteCode?: string; error?: string }>
   logout: () => Promise<void>
   refresh: () => Promise<void>
 }
 
+interface AuthResponse {
+  authenticated?: boolean
+  householdId: string | null
+  inviteCode: string | null
+  error?: string
+}
+
 const AuthContext = createContext<AuthContextType | null>(null)
 
-const STORAGE_KEY = 'babytracker_auth'
-const USERS_KEY = 'babytracker_users'
-const INVITES_KEY = 'babytracker_invites'
+async function postAuth(path: string, body?: Record<string, unknown>): Promise<AuthResponse> {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  const data = await response.json().catch(() => null)
 
-interface StoredUser {
-  username: string
-  passwordHash: string
-  householdId: string
-  inviteCode: string
-}
-
-interface StoredAuth {
-  householdId: string
-  username: string
-  inviteCode: string
-}
-
-// Simple hash for demo (in production, use bcrypt on server)
-function simpleHash(str: string): string {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash = hash & hash
+  if (!response.ok) {
+    return {
+      householdId: null,
+      inviteCode: null,
+      error: data?.error || `Request failed with status ${response.status}`,
+    }
   }
-  return hash.toString(36)
-}
 
-function generateInviteCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  let code = ''
-  for (let i = 0; i < 8; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-  return code
-}
-
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-}
-
-function getUsers(): Record<string, StoredUser> {
-  if (typeof window === 'undefined') return {}
-  const data = localStorage.getItem(USERS_KEY)
-  return data ? JSON.parse(data) : {}
-}
-
-function setUsers(users: Record<string, StoredUser>) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users))
-}
-
-function getInvites(): Record<string, string> {
-  if (typeof window === 'undefined') return {}
-  const data = localStorage.getItem(INVITES_KEY)
-  return data ? JSON.parse(data) : {}
-}
-
-function setInvites(invites: Record<string, string>) {
-  localStorage.setItem(INVITES_KEY, JSON.stringify(invites))
-}
-
-function getStoredAuth(): StoredAuth | null {
-  if (typeof window === 'undefined') return null
-  const data = localStorage.getItem(STORAGE_KEY)
-  return data ? JSON.parse(data) : null
-}
-
-function setStoredAuth(auth: StoredAuth | null) {
-  if (auth) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(auth))
-  } else {
-    localStorage.removeItem(STORAGE_KEY)
-  }
+  return data
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -109,16 +58,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     inviteCode: null,
   })
 
+  const setAuthenticatedState = useCallback((
+    data: AuthResponse,
+    username: string | null = null
+  ) => {
+    setState({
+      authenticated: true,
+      loading: false,
+      householdId: data.householdId,
+      username,
+      inviteCode: data.inviteCode,
+    })
+  }, [])
+
   const refresh = useCallback(async () => {
-    const stored = getStoredAuth()
-    if (stored) {
-      setState({
-        authenticated: true,
-        loading: false,
-        householdId: stored.householdId,
-        username: stored.username,
-        inviteCode: stored.inviteCode,
-      })
+    const response = await fetch('/api/auth/me')
+    const data = await response.json()
+
+    if (data.authenticated) {
+      setAuthenticatedState(data, state.username)
     } else {
       setState({
         authenticated: false,
@@ -128,92 +86,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         inviteCode: null,
       })
     }
-  }, [])
+  }, [setAuthenticatedState, state.username])
 
   useEffect(() => {
     refresh()
   }, [refresh])
 
   const login = async (username: string, password: string) => {
-    const users = getUsers()
-    const user = users[username.toLowerCase()]
-    
-    if (!user) {
-      return { success: false, error: 'User not found' }
+    const result = await postAuth('/api/auth/login', { username, password })
+
+    if (result.error) {
+      return { success: false, error: result.error }
     }
-    
-    if (user.passwordHash !== simpleHash(password)) {
-      return { success: false, error: 'Incorrect password' }
-    }
-    
-    const auth: StoredAuth = {
-      householdId: user.householdId,
-      username: user.username,
-      inviteCode: user.inviteCode,
-    }
-    
-    setStoredAuth(auth)
-    await refresh()
+
+    setAuthenticatedState(result, username)
     return { success: true }
   }
 
   const signup = async (username: string, password: string) => {
-    const users = getUsers()
-    
-    if (users[username.toLowerCase()]) {
-      return { success: false, error: 'Username already taken' }
+    const result = await postAuth('/api/auth/signup', { username, password })
+
+    if (result.error) {
+      return { success: false, error: result.error }
     }
-    
-    const householdId = generateId()
-    const inviteCode = generateInviteCode()
-    
-    const user: StoredUser = {
-      username,
-      passwordHash: simpleHash(password),
-      householdId,
-      inviteCode,
-    }
-    
-    users[username.toLowerCase()] = user
-    setUsers(users)
-    
-    // Store invite code mapping
-    const invites = getInvites()
-    invites[inviteCode] = householdId
-    setInvites(invites)
-    
-    const auth: StoredAuth = {
-      householdId,
-      username,
-      inviteCode,
-    }
-    
-    setStoredAuth(auth)
-    await refresh()
+
+    setAuthenticatedState(result, username)
     return { success: true }
   }
 
   const join = async (inviteCode: string) => {
-    const invites = getInvites()
-    const householdId = invites[inviteCode.toUpperCase()]
-    
-    if (!householdId) {
-      return { success: false, error: 'Invalid invite code' }
+    const result = await postAuth('/api/auth/join', { inviteCode })
+
+    if (result.error) {
+      return { success: false, error: result.error }
     }
-    
-    const auth: StoredAuth = {
-      householdId,
-      username: 'Partner',
-      inviteCode: inviteCode.toUpperCase(),
-    }
-    
-    setStoredAuth(auth)
-    await refresh()
+
+    setAuthenticatedState(result, 'Partner')
     return { success: true }
   }
 
+  const generateInviteCode = async () => {
+    const result = await postAuth('/api/auth/invite')
+
+    if (result.error) {
+      return { success: false, error: result.error }
+    }
+
+    setState(current => ({
+      ...current,
+      inviteCode: result.inviteCode,
+    }))
+
+    return { success: true, inviteCode: result.inviteCode || undefined }
+  }
+
   const logout = async () => {
-    setStoredAuth(null)
+    await postAuth('/api/auth/logout')
     setState({
       authenticated: false,
       loading: false,
@@ -224,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ ...state, login, signup, join, logout, refresh }}>
+    <AuthContext.Provider value={{ ...state, login, signup, join, generateInviteCode, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   )
