@@ -134,7 +134,32 @@ export async function getHouseholdData<K extends keyof StoredHouseholdData>(
   type: K
 ): Promise<StoredHouseholdData[K]> {
   const value = await getJsonStore().get<StoredHouseholdData[K]>(householdDataKey(householdId, type))
-  return value ?? ([] as StoredHouseholdData[K])
+  if (!value) {
+    return [] as unknown as StoredHouseholdData[K]
+  }
+
+  if (type === 'feeds') {
+    return (value as FeedEntry[]).map(feed => ({
+      ...feed,
+      timestamp: new Date(feed.timestamp),
+    })) as unknown as StoredHouseholdData[K]
+  }
+
+  if (type === 'nappies') {
+    return (value as NappyEntry[]).map(nappy => ({
+      ...nappy,
+      timestamp: new Date(nappy.timestamp),
+    })) as unknown as StoredHouseholdData[K]
+  }
+
+  if (type === 'appointments') {
+    return (value as Appointment[]).map(appointment => ({
+      ...appointment,
+      dateTime: new Date(appointment.dateTime),
+    })) as unknown as StoredHouseholdData[K]
+  }
+
+  return value
 }
 
 export async function setHouseholdData<K extends keyof StoredHouseholdData>(
