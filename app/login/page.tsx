@@ -106,12 +106,6 @@ export default function LoginPage() {
           >
             Create an account
           </Link>
-          <Link 
-            href="/join" 
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Have an invite code?
-          </Link>
         </div>
       </div>
     </div>

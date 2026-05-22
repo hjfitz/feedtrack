@@ -12,8 +12,7 @@ interface AuthState {
 
 interface AuthContextType extends AuthState {
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>
-  signup: (username: string, password: string) => Promise<{ success: boolean; error?: string }>
-  join: (inviteCode: string) => Promise<{ success: boolean; error?: string }>
+  signup: (username: string, password: string, inviteCode?: string) => Promise<{ success: boolean; error?: string }>
   generateInviteCode: () => Promise<{ success: boolean; inviteCode?: string; error?: string }>
   logout: () => Promise<void>
   refresh: () => Promise<void>
@@ -103,25 +102,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: true }
   }
 
-  const signup = async (username: string, password: string) => {
-    const result = await postAuth('/api/auth/signup', { username, password })
+  const signup = async (username: string, password: string, inviteCode?: string) => {
+    const result = await postAuth('/api/auth/signup', { username, password, inviteCode })
 
     if (result.error) {
       return { success: false, error: result.error }
     }
 
     setAuthenticatedState(result, username)
-    return { success: true }
-  }
-
-  const join = async (inviteCode: string) => {
-    const result = await postAuth('/api/auth/join', { inviteCode })
-
-    if (result.error) {
-      return { success: false, error: result.error }
-    }
-
-    setAuthenticatedState(result, 'Partner')
     return { success: true }
   }
 
@@ -152,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ ...state, login, signup, join, generateInviteCode, logout, refresh }}>
+    <AuthContext.Provider value={{ ...state, login, signup, generateInviteCode, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   )

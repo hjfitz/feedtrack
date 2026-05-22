@@ -11,6 +11,7 @@ export default function SignupPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -23,9 +24,14 @@ export default function SignupPage() {
       return
     }
 
+    if (inviteCode && inviteCode.length < 8) {
+      setError('Invite code must be 8 characters')
+      return
+    }
+
     setLoading(true)
 
-    const result = await signup(username, password)
+    const result = await signup(username, password, inviteCode || undefined)
     
     if (result.success) {
       router.push('/')
@@ -34,6 +40,11 @@ export default function SignupPage() {
     }
     
     setLoading(false)
+  }
+
+  const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)
+    setInviteCode(value)
   }
 
   return (
@@ -114,6 +125,26 @@ export default function SignupPage() {
             />
           </div>
 
+          <div className="flex flex-col gap-2">
+            <label htmlFor="invite-code" className="text-sm text-muted-foreground">
+              Invite code <span className="text-muted-foreground/60">(optional)</span>
+            </label>
+            <input
+              id="invite-code"
+              type="text"
+              value={inviteCode}
+              onChange={handleCodeChange}
+              autoComplete="off"
+              autoCapitalize="characters"
+              className="h-14 rounded-xl bg-muted/50 border border-muted px-4 text-lg text-foreground font-mono tracking-widest
+                         placeholder:text-muted-foreground/50
+                         focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50
+                         transition-all"
+              placeholder="ABCD1234"
+              maxLength={8}
+            />
+          </div>
+
           <button
             type="submit"
             disabled={loading}
@@ -134,12 +165,6 @@ export default function SignupPage() {
             className="text-sky-400 font-medium hover:text-sky-300 transition-colors"
           >
             Already have an account? Sign in
-          </Link>
-          <Link 
-            href="/join" 
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Have an invite code?
           </Link>
         </div>
       </div>

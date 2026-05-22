@@ -4,8 +4,10 @@ import { NextResponse } from 'next/server'
 import { setSessionCookie } from '@/lib/server/auth'
 import {
   getInvite,
+  getHouseholdMeta,
   getUser,
   initializeHousehold,
+  normalizeInviteCode,
   normalizeUsername,
   setInvite,
   setUser,
@@ -15,6 +17,7 @@ import { jsonError, parseJsonBody } from '@/lib/server/http'
 interface SignupBody {
   username?: string
   password?: string
+  inviteCode?: string
 }
 
 const INVITE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -54,15 +57,35 @@ export async function POST(request: Request) {
     return jsonError('Username already taken', 409)
   }
 
-  const householdId = randomUUID()
-  const inviteCode = await createUniqueInviteCode()
+  const requestedInviteCode = normalizeInviteCode(body?.inviteCode || '')
+  const invite = requestedInviteCode ? await getInvite(requestedInviteCode) : null
+
+  if (requestedInviteCode && requestedInviteCode.length !== 8) {
+    return jsonError('Invite code must be 8 characters')
+  }
+
+  if (requestedInviteCode && !invite) {
+    return jsonError('Invalid invite code', 404)
+  }
+
+  const householdId = invite?.householdId || randomUUID()
+  const inviteCode = requestedInviteCode || await createUniqueInviteCode()
   const hash = await bcrypt.hash(password, 12)
 
-  await Promise.all([
-    setUser(username, { id: householdId, hash, inviteCode }),
-    setInvite(inviteCode, { householdId }),
-    initializeHousehold(householdId, inviteCode),
-  ])
+  if (invite) {
+    const meta = await getHouseholdMeta(householdId)
+    await setUser(username, {
+      id: householdId,
+      hash,
+      inviteCode: meta?.inviteCode || inviteCode,
+    })
+  } else {
+    await Promise.all([
+      setUser(username, { id: householdId, hash, inviteCode }),
+      setInvite(inviteCode, { householdId }),
+      initializeHousehold(householdId, inviteCode),
+    ])
+  }
 
   await setSessionCookie(householdId)
 
