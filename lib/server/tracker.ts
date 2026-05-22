@@ -1,0 +1,349 @@
+import { randomUUID } from 'node:crypto'
+import bcrypt from 'bcryptjs'
+import {
+  deleteInvite,
+  getHouseholdData,
+  getHouseholdMeta,
+  getInvite,
+  getUser,
+  initializeHousehold,
+  normalizeInviteCode,
+  normalizeUsername,
+  setHouseholdData,
+  setHouseholdMeta,
+  setInvite,
+  setUser,
+} from '@/lib/server/blob-storage'
+import { calculateSummary } from '@/lib/server/summaries'
+import type { Appointment, DailySummary, FeedEntry, FeedType, NappyEntry, NappyType } from '@/lib/types'
+
+const INVITE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+export class AppError extends Error {
+  constructor(message: string, public status = 400) {
+    super(message)
+  }
+}
+
+export function generateId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
+}
+
+export function parseDate(value: unknown) {
+  const date = typeof value === 'string' || value instanceof Date ? new Date(value) : null
+  return date && !Number.isNaN(date.getTime()) ? date : null
+}
+
+function createInviteCode() {
+  let code = ''
+  for (let i = 0; i < 8; i++) {
+    code += INVITE_CHARS[Math.floor(Math.random() * INVITE_CHARS.length)]
+  }
+  return code
+}
+
+export async function createUniqueInviteCode() {
+  let code = createInviteCode()
+  while (await getInvite(code)) {
+    code = createInviteCode()
+  }
+  return code
+}
+
+function sortFeeds(feeds: FeedEntry[]) {
+  return feeds.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+}
+
+function sortNappies(nappies: NappyEntry[]) {
+  return nappies.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+}
+
+function sortAppointments(appointments: Appointment[]) {
+  return appointments.sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime())
+}
+
+export async function getFeeds(householdId: string, since?: Date | null) {
+  const feeds = sortFeeds(await getHouseholdData(householdId, 'feeds'))
+  return since ? feeds.filter(feed => new Date(feed.timestamp).getTime() >= since.getTime()) : feeds
+}
+
+export async function getNappies(householdId: string, since?: Date | null) {
+  const nappies = sortNappies(await getHouseholdData(householdId, 'nappies'))
+  return since ? nappies.filter(nappy => new Date(nappy.timestamp).getTime() >= since.getTime()) : nappies
+}
+
+export async function getAppointments(householdId: string) {
+  return sortAppointments(await getHouseholdData(householdId, 'appointments'))
+}
+
+export async function getTodaySummary(householdId: string): Promise<DailySummary> {
+  const now = new Date()
+  const start = new Date(now)
+  start.setHours(0, 0, 0, 0)
+  const [feeds, nappies] = await Promise.all([
+    getHouseholdData(householdId, 'feeds'),
+    getHouseholdData(householdId, 'nappies'),
+  ])
+  return calculateSummary(feeds, nappies, start, now, now)
+}
+
+export async function getHoursSummary(householdId: string, hours: number): Promise<DailySummary> {
+  const now = new Date()
+  const start = new Date(now.getTime() - Math.max(hours, 1) * 60 * 60 * 1000)
+  const [feeds, nappies] = await Promise.all([
+    getHouseholdData(householdId, 'feeds'),
+    getHouseholdData(householdId, 'nappies'),
+  ])
+  return calculateSummary(feeds, nappies, start, now, now)
+}
+
+export async function getOverviewData(householdId: string) {
+  const [feeds, nappies, summary] = await Promise.all([
+    getFeeds(householdId),
+    getNappies(householdId),
+    getTodaySummary(householdId),
+  ])
+
+  return {
+    lastFeed: feeds[0] || null,
+    lastNappy: nappies[0] || null,
+    summary,
+  }
+}
+
+export async function addFeed(
+  householdId: string,
+  input: { type?: FeedType; timestamp?: unknown; side?: FeedEntry['side']; durationSeconds?: unknown; volumeMl?: unknown }
+) {
+  const timestamp = parseDate(input.timestamp)
+
+  if (input.type !== 'breast' && input.type !== 'formula') {
+    throw new AppError('Feed type is required')
+  }
+
+  if (!timestamp) {
+    throw new AppError('Valid timestamp is required')
+  }
+
+  const feed: FeedEntry = {
+    id: generateId(),
+    type: input.type,
+    timestamp,
+    side: input.side,
+    durationSeconds: typeof input.durationSeconds === 'number' ? input.durationSeconds : undefined,
+    volumeMl: typeof input.volumeMl === 'number' ? input.volumeMl : undefined,
+  }
+
+  const feeds = await getHouseholdData(householdId, 'feeds')
+  await setHouseholdData(householdId, 'feeds', sortFeeds([feed, ...feeds]))
+  return feed
+}
+
+export async function updateFeed(householdId: string, id: string, input: Partial<FeedEntry>) {
+  const feeds = await getHouseholdData(householdId, 'feeds')
+  const index = feeds.findIndex(feed => feed.id === id)
+
+  if (index === -1) {
+    throw new AppError('Feed not found', 404)
+  }
+
+  const updates: Partial<FeedEntry> = {}
+  if (input.type === 'breast' || input.type === 'formula') updates.type = input.type
+  if (typeof input.durationSeconds === 'number') updates.durationSeconds = input.durationSeconds
+  if (typeof input.volumeMl === 'number') updates.volumeMl = input.volumeMl
+  if (input.timestamp) {
+    const timestamp = parseDate(input.timestamp)
+    if (!timestamp) throw new AppError('Valid timestamp is required')
+    updates.timestamp = timestamp
+  }
+
+  const nextFeed: FeedEntry = { ...feeds[index], ...updates }
+  if (nextFeed.type === 'breast') {
+    delete nextFeed.volumeMl
+  } else {
+    delete nextFeed.durationSeconds
+    delete nextFeed.side
+  }
+
+  feeds[index] = nextFeed
+  await setHouseholdData(householdId, 'feeds', sortFeeds(feeds))
+  return nextFeed
+}
+
+export async function deleteFeed(householdId: string, id: string) {
+  const feeds = await getHouseholdData(householdId, 'feeds')
+  await setHouseholdData(householdId, 'feeds', feeds.filter(feed => feed.id !== id))
+}
+
+export async function addNappy(
+  householdId: string,
+  input: { type?: NappyType; timestamp?: unknown; notes?: unknown }
+) {
+  const timestamp = parseDate(input.timestamp)
+
+  if (input.type !== 'wet' && input.type !== 'dirty' && input.type !== 'both') {
+    throw new AppError('Nappy type is required')
+  }
+
+  if (!timestamp) {
+    throw new AppError('Valid timestamp is required')
+  }
+
+  const nappy: NappyEntry = {
+    id: generateId(),
+    type: input.type,
+    timestamp,
+    notes: typeof input.notes === 'string' && input.notes ? input.notes : undefined,
+  }
+
+  const nappies = await getHouseholdData(householdId, 'nappies')
+  await setHouseholdData(householdId, 'nappies', sortNappies([nappy, ...nappies]))
+  return nappy
+}
+
+export async function updateNappy(householdId: string, id: string, input: Partial<NappyEntry>) {
+  const nappies = await getHouseholdData(householdId, 'nappies')
+  const index = nappies.findIndex(nappy => nappy.id === id)
+
+  if (index === -1) {
+    throw new AppError('Nappy not found', 404)
+  }
+
+  const updates: Partial<NappyEntry> = {}
+  if (input.type === 'wet' || input.type === 'dirty' || input.type === 'both') updates.type = input.type
+  if (typeof input.notes === 'string') updates.notes = input.notes
+  if (input.timestamp) {
+    const timestamp = parseDate(input.timestamp)
+    if (!timestamp) throw new AppError('Valid timestamp is required')
+    updates.timestamp = timestamp
+  }
+
+  const nextNappy = { ...nappies[index], ...updates }
+  nappies[index] = nextNappy
+  await setHouseholdData(householdId, 'nappies', sortNappies(nappies))
+  return nextNappy
+}
+
+export async function deleteNappy(householdId: string, id: string) {
+  const nappies = await getHouseholdData(householdId, 'nappies')
+  await setHouseholdData(householdId, 'nappies', nappies.filter(nappy => nappy.id !== id))
+}
+
+export async function addAppointment(
+  householdId: string,
+  input: { title?: unknown; dateTime?: unknown; notes?: unknown; isPast?: unknown }
+) {
+  const title = typeof input.title === 'string' ? input.title.trim() : ''
+  const dateTime = parseDate(input.dateTime)
+
+  if (!title) throw new AppError('Appointment title is required')
+  if (!dateTime) throw new AppError('Valid appointment time is required')
+
+  const appointment: Appointment = {
+    id: generateId(),
+    title,
+    dateTime,
+    notes: typeof input.notes === 'string' && input.notes ? input.notes : undefined,
+    isPast: Boolean(input.isPast),
+  }
+
+  const appointments = await getHouseholdData(householdId, 'appointments')
+  await setHouseholdData(householdId, 'appointments', sortAppointments([...appointments, appointment]))
+  return appointment
+}
+
+export async function updateAppointment(householdId: string, id: string, input: Partial<Appointment>) {
+  const appointments = await getHouseholdData(householdId, 'appointments')
+  const index = appointments.findIndex(appointment => appointment.id === id)
+
+  if (index === -1) {
+    throw new AppError('Appointment not found', 404)
+  }
+
+  const updates: Partial<Omit<Appointment, 'id'>> = {}
+  if (typeof input.title === 'string') updates.title = input.title.trim()
+  if (typeof input.notes === 'string') updates.notes = input.notes || undefined
+  if (typeof input.isPast === 'boolean') updates.isPast = input.isPast
+  if (input.dateTime) {
+    const dateTime = parseDate(input.dateTime)
+    if (!dateTime) throw new AppError('Valid appointment time is required')
+    updates.dateTime = dateTime
+  }
+
+  const nextAppointment = { ...appointments[index], ...updates }
+  appointments[index] = nextAppointment
+  await setHouseholdData(householdId, 'appointments', sortAppointments(appointments))
+  return nextAppointment
+}
+
+export async function deleteAppointment(householdId: string, id: string) {
+  const appointments = await getHouseholdData(householdId, 'appointments')
+  await setHouseholdData(
+    householdId,
+    'appointments',
+    appointments.filter(appointment => appointment.id !== id)
+  )
+}
+
+export async function signupUser(usernameInput: string, password: string, inviteCodeInput?: string) {
+  const username = normalizeUsername(usernameInput)
+
+  if (username.length < 3) throw new AppError('Username must be at least 3 characters')
+  if (password.length < 6) throw new AppError('Password must be at least 6 characters')
+  if (await getUser(username)) throw new AppError('Username already taken', 409)
+
+  const requestedInviteCode = normalizeInviteCode(inviteCodeInput || '')
+  if (requestedInviteCode && requestedInviteCode.length !== 8) {
+    throw new AppError('Invite code must be 8 characters')
+  }
+
+  const invite = requestedInviteCode ? await getInvite(requestedInviteCode) : null
+  if (requestedInviteCode && !invite) throw new AppError('Invalid invite code', 404)
+
+  const householdId = invite?.householdId || randomUUID()
+  const inviteCode = requestedInviteCode || await createUniqueInviteCode()
+  const hash = await bcrypt.hash(password, 12)
+
+  if (invite) {
+    const meta = await getHouseholdMeta(householdId)
+    await setUser(username, {
+      id: householdId,
+      hash,
+      inviteCode: meta?.inviteCode || inviteCode,
+    })
+  } else {
+    await Promise.all([
+      setUser(username, { id: householdId, hash, inviteCode }),
+      setInvite(inviteCode, { householdId }),
+      initializeHousehold(householdId, inviteCode),
+    ])
+  }
+
+  return { householdId, inviteCode }
+}
+
+export async function loginUser(usernameInput: string, password: string) {
+  const username = normalizeUsername(usernameInput)
+  if (!username || !password) throw new AppError('Username and password are required')
+
+  const user = await getUser(username)
+  if (!user) throw new AppError('User not found', 404)
+
+  const matches = await bcrypt.compare(password, user.hash)
+  if (!matches) throw new AppError('Incorrect password', 401)
+
+  return { householdId: user.id, inviteCode: user.inviteCode }
+}
+
+export async function generateInviteCode(householdId: string) {
+  const meta = await getHouseholdMeta(householdId)
+  const inviteCode = await createUniqueInviteCode()
+
+  await Promise.all([
+    meta?.inviteCode ? deleteInvite(meta.inviteCode) : Promise.resolve(),
+    setInvite(inviteCode, { householdId }),
+    setHouseholdMeta(householdId, { inviteCode }),
+  ])
+
+  return inviteCode
+}

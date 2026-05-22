@@ -84,6 +84,15 @@ class ApiStorage implements IStorage {
     return feeds[0] || null
   }
 
+  async updateFeed(id: string, updates: Partial<FeedEntry>): Promise<FeedEntry> {
+    const saved = await fetchJson<FeedEntry>(`/api/feeds/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    })
+    this.notify()
+    return hydrateFeed(saved)
+  }
+
   async deleteFeed(id: string): Promise<void> {
     await fetchJson(`/api/feeds/${encodeURIComponent(id)}`, { method: 'DELETE' })
     this.notify()
@@ -102,6 +111,15 @@ class ApiStorage implements IStorage {
     const params = since ? `?since=${encodeURIComponent(since.toISOString())}` : ''
     const nappies = await fetchJson<NappyEntry[]>(`/api/nappies${params}`)
     return nappies.map(hydrateNappy)
+  }
+
+  async updateNappy(id: string, updates: Partial<NappyEntry>): Promise<NappyEntry> {
+    const saved = await fetchJson<NappyEntry>(`/api/nappies/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    })
+    this.notify()
+    return hydrateNappy(saved)
   }
 
   async deleteNappy(id: string): Promise<void> {

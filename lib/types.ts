@@ -48,11 +48,13 @@ export interface IStorage {
   addFeed(feed: Omit<FeedEntry, 'id'>): Promise<FeedEntry>
   getFeeds(since?: Date): Promise<FeedEntry[]>
   getLastFeed(): Promise<FeedEntry | null>
+  updateFeed(id: string, updates: Partial<FeedEntry>): Promise<FeedEntry>
   deleteFeed(id: string): Promise<void>
   
   // Nappies
   addNappy(nappy: Omit<NappyEntry, 'id'>): Promise<NappyEntry>
   getNappies(since?: Date): Promise<NappyEntry[]>
+  updateNappy(id: string, updates: Partial<NappyEntry>): Promise<NappyEntry>
   deleteNappy(id: string): Promise<void>
   
   // Appointments

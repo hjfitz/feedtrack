@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { jwtVerify, SignJWT } from 'jose'
 
 const COOKIE_NAME = 'babytracker_session'
@@ -58,4 +59,14 @@ export async function getSessionHouseholdId() {
   } catch {
     return null
   }
+}
+
+export async function requireSessionHouseholdId() {
+  const householdId = await getSessionHouseholdId()
+
+  if (!householdId) {
+    redirect('/login')
+  }
+
+  return householdId
 }

@@ -1,6 +1,23 @@
 import { NextResponse } from 'next/server'
-import { getHouseholdData, setHouseholdData } from '@/lib/server/blob-storage'
-import { requireHouseholdId } from '@/lib/server/http'
+import { jsonError, parseJsonBody, requireHouseholdId } from '@/lib/server/http'
+import { AppError, deleteNappy, updateNappy } from '@/lib/server/tracker'
+import type { NappyEntry } from '@/lib/types'
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { householdId, response } = await requireHouseholdId()
+  if (response) return response
+
+  const { id } = await params
+  try {
+    return NextResponse.json(await updateNappy(householdId, id, await parseJsonBody<Partial<NappyEntry>>(request) || {}))
+  } catch (error) {
+    if (error instanceof AppError) return jsonError(error.message, error.status)
+    throw error
+  }
+}
 
 export async function DELETE(
   _request: Request,
@@ -10,8 +27,7 @@ export async function DELETE(
   if (response) return response
 
   const { id } = await params
-  const nappies = await getHouseholdData(householdId, 'nappies')
-  await setHouseholdData(householdId, 'nappies', nappies.filter(nappy => nappy.id !== id))
+  await deleteNappy(householdId, id)
 
   return NextResponse.json({ success: true })
 }

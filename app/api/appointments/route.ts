@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getHouseholdData, setHouseholdData } from '@/lib/server/blob-storage'
-import { generateId, jsonError, parseDate, parseJsonBody, requireHouseholdId } from '@/lib/server/http'
-import type { Appointment } from '@/lib/types'
+import { jsonError, parseJsonBody, requireHouseholdId } from '@/lib/server/http'
+import { addAppointment, AppError, getAppointments } from '@/lib/server/tracker'
 
 interface AppointmentBody {
   title?: string
@@ -14,40 +13,17 @@ export async function GET() {
   const { householdId, response } = await requireHouseholdId()
   if (response) return response
 
-  const appointments = await getHouseholdData(householdId, 'appointments')
-  appointments.sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime())
-
-  return NextResponse.json(appointments)
+  return NextResponse.json(await getAppointments(householdId))
 }
 
 export async function POST(request: Request) {
   const { householdId, response } = await requireHouseholdId()
   if (response) return response
 
-  const body = await parseJsonBody<AppointmentBody>(request)
-  const dateTime = parseDate(body?.dateTime)
-  const title = body?.title?.trim()
-
-  if (!title) {
-    return jsonError('Appointment title is required')
+  try {
+    return NextResponse.json(await addAppointment(householdId, await parseJsonBody<AppointmentBody>(request) || {}))
+  } catch (error) {
+    if (error instanceof AppError) return jsonError(error.message, error.status)
+    throw error
   }
-
-  if (!dateTime) {
-    return jsonError('Valid appointment time is required')
-  }
-
-  const appointment: Appointment = {
-    id: generateId(),
-    title,
-    dateTime,
-    notes: body?.notes || undefined,
-    isPast: Boolean(body?.isPast),
-  }
-
-  const appointments = await getHouseholdData(householdId, 'appointments')
-  const nextAppointments = [...appointments, appointment]
-  nextAppointments.sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime())
-  await setHouseholdData(householdId, 'appointments', nextAppointments)
-
-  return NextResponse.json(appointment)
 }
