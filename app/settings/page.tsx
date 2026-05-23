@@ -9,7 +9,11 @@ export default async function SettingsPage() {
 
   return (
     <AppShell>
-      <SettingsPanel inviteCode={meta?.inviteCode || null} />
+      <SettingsPanel
+        inviteCode={meta?.inviteCode || null}
+        babyName={meta?.babyName || ''}
+        babyDob={meta?.babyDob || ''}
+      />
     </AppShell>
   )
 }

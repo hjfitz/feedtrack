@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { clearSessionCookie, requireSessionHouseholdId, setSessionCookie } from '@/lib/server/auth'
+import { getHouseholdMeta, setHouseholdMeta } from '@/lib/server/blob-storage'
 import { AppError, changePassword, generateInviteCode, loginUser, signupUser } from '@/lib/server/tracker'
 
 export interface AuthFormState {
@@ -76,4 +77,32 @@ export async function changePasswordAction(_state: AuthFormState, formData: Form
   }
 
   return { error: '', success: 'Password changed' }
+}
+
+export async function updateBabyDetailsAction(_state: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  const babyName = getString(formData, 'babyName').trim()
+  const babyDob = getString(formData, 'babyDob')
+
+  try {
+    if (babyDob) {
+      const parsedDob = new Date(`${babyDob}T00:00:00`)
+      if (Number.isNaN(parsedDob.getTime())) {
+        throw new AppError('Date of birth is invalid')
+      }
+    }
+
+    const householdId = await requireSessionHouseholdId()
+    const meta = await getHouseholdMeta(householdId)
+    await setHouseholdMeta(householdId, {
+      inviteCode: meta?.inviteCode || '',
+      babyName: babyName || undefined,
+      babyDob: babyDob || undefined,
+    })
+    revalidatePath('/')
+    revalidatePath('/settings')
+  } catch (error) {
+    return formError(error)
+  }
+
+  return { error: '', success: 'Baby details saved' }
 }

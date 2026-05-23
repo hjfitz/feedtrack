@@ -14,7 +14,7 @@
 - Build: `npm run build`
 - Dev server with mock storage: `NEXT_PUBLIC_USE_MOCK_STORAGE=true JWT_SECRET=test-secret npm run dev`
 - Build with mock env: `NEXT_PUBLIC_USE_MOCK_STORAGE=true JWT_SECRET=test-secret npm run build`
-- Current lint script is known to fail with `No files matching the pattern "." were found.` Do not treat that as a regression unless the lint setup is being changed.
+- Do not run `npm run lint` for routine verification. The current lint script is known to fail with `No files matching the pattern "." were found.` Only run it when changing the lint setup itself.
 
 ## Environment
 - `JWT_SECRET` is required for auth/session code.

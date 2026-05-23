@@ -292,24 +292,18 @@ export function HomePanel({
         </div>
         <div className="rounded-2xl bg-muted/30 p-4 border border-muted/50">
           <p className="text-xs text-muted-foreground uppercase tracking-wide mb-3">Today</p>
-          <div className="grid grid-cols-4 gap-2 text-center">
+          <div className="grid grid-cols-3 gap-2 text-center">
             <div className="rounded-xl bg-sky-500/10 border border-sky-500/20 px-2 py-3 min-w-0">
               <p className="text-xs text-muted-foreground">Breast</p>
-              <p className="text-lg font-bold text-sky-400 mt-2 tabular-nums">{formatSummaryMinutes(summary.totalBreastMinutes)}</p>
-            </div>
-            <div className="rounded-xl bg-cyan-500/10 border border-cyan-500/20 px-2 py-3 min-w-0">
-              <p className="text-xs text-muted-foreground">Pumped</p>
-              <p className="text-lg font-bold text-cyan-400 mt-2 tabular-nums">{summary.totalBreastMilkMl}ml</p>
+              <p className="text-xs font-semibold text-sky-400 mt-2 tabular-nums whitespace-nowrap">{summary.breastFeedCount} feeds · {formatSummaryMinutes(summary.totalBreastMinutes)} · {summary.totalBreastMilkMl}ml</p>
             </div>
             <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-2 py-3 min-w-0">
-              <p className="text-2xl font-bold text-foreground">{summary.formulaFeedCount}</p>
               <p className="text-xs text-muted-foreground">Formula</p>
-              <p className="text-sm font-semibold text-amber-400 mt-2 tabular-nums">{summary.totalFormulaMl}ml</p>
+              <p className="text-xs font-semibold text-amber-400 mt-2 tabular-nums whitespace-nowrap">{summary.formulaFeedCount} feeds · {summary.totalFormulaMl}ml</p>
             </div>
             <div className="rounded-xl bg-violet-500/10 border border-violet-500/20 px-2 py-3 min-w-0">
-              <p className="text-2xl font-bold text-foreground">{summary.nappyCount}</p>
               <p className="text-xs text-muted-foreground">Nappies</p>
-              <p className="text-xs font-semibold text-violet-400 mt-2 tabular-nums whitespace-nowrap">{summary.wetCount} wet · {summary.dirtyCount} dirty</p>
+              <p className="text-xs font-semibold text-violet-400 mt-2 tabular-nums whitespace-nowrap">{summary.nappyCount} · {summary.wetCount} wet · {summary.dirtyCount} dirty</p>
             </div>
           </div>
         </div>
@@ -320,14 +314,17 @@ export function HomePanel({
             <div className="h-px flex-1 bg-border" />
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <button onClick={() => showFeedMode('breast')} disabled={isLogging} className="flex h-20 items-center justify-center rounded-2xl bg-sky-500/15 border-2 border-sky-500/30 text-sky-400 transition-all duration-150 hover:bg-sky-500/25 hover:border-sky-500/50 hover:scale-[1.01] active:bg-sky-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+            <button onClick={() => showFeedMode('breast')} disabled={isLogging} className="flex h-20 flex-col items-center justify-center rounded-2xl bg-sky-500/15 border-2 border-sky-500/30 text-sky-400 transition-all duration-150 hover:bg-sky-500/25 hover:border-sky-500/50 hover:scale-[1.01] active:bg-sky-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
               <span className="text-lg font-bold">Breast</span>
+              <span className="text-xs font-medium text-muted-foreground">duration</span>
             </button>
-            <button onClick={() => showFeedMode('expressed')} disabled={isLogging} className="flex h-20 items-center justify-center rounded-2xl bg-cyan-500/15 border-2 border-cyan-500/30 text-cyan-400 transition-all duration-150 hover:bg-cyan-500/25 hover:border-cyan-500/50 hover:scale-[1.01] active:bg-cyan-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+            <button onClick={() => showFeedMode('expressed')} disabled={isLogging} className="flex h-20 flex-col items-center justify-center rounded-2xl bg-cyan-500/15 border-2 border-cyan-500/30 text-cyan-400 transition-all duration-150 hover:bg-cyan-500/25 hover:border-cyan-500/50 hover:scale-[1.01] active:bg-cyan-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
               <span className="text-lg font-bold">Pumped</span>
+              <span className="text-xs font-medium text-muted-foreground">expressed · ml</span>
             </button>
-            <button onClick={() => showFeedMode('formula')} disabled={isLogging} className="flex h-20 items-center justify-center rounded-2xl bg-amber-500/15 border-2 border-amber-500/30 text-amber-400 transition-all duration-150 hover:bg-amber-500/25 hover:border-amber-500/50 hover:scale-[1.01] active:bg-amber-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+            <button onClick={() => showFeedMode('formula')} disabled={isLogging} className="flex h-20 flex-col items-center justify-center rounded-2xl bg-amber-500/15 border-2 border-amber-500/30 text-amber-400 transition-all duration-150 hover:bg-amber-500/25 hover:border-amber-500/50 hover:scale-[1.01] active:bg-amber-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
               <span className="text-lg font-bold">Formula</span>
+              <span className="text-xs font-medium text-muted-foreground">made up · ml</span>
             </button>
           </div>
           <div className="grid grid-cols-3 gap-3">
