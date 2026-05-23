@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { PwaRegister } from '@/components/pwa-register'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -9,7 +10,17 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: 'Baby Tracker',
   description: 'Track feeds, nappies, and analytics for your newborn',
+  applicationName: 'Baby Tracker',
   generator: 'v0.app',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    title: 'Baby Tracker',
+    statusBarStyle: 'black-translucent',
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
     icon: [
       {
@@ -47,6 +58,7 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className="font-sans antialiased bg-background">
         {children}
+        <PwaRegister />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
