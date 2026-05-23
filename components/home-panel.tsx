@@ -2,6 +2,13 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { addFeedAction, addNappyAction } from '@/app/actions/tracker'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import type { DailySummary, FeedEntry, NappyEntry } from '@/lib/types'
 
 function formatTimeSince(date: Date | null, now: Date): string {
@@ -21,6 +28,11 @@ function formatSummaryMinutes(minutes: number): string {
   const hours = Math.floor(minutes / 60)
   const mins = minutes % 60
   return mins ? `${hours}h ${mins}m` : `${hours}h`
+}
+
+function toDateTimeLocalValue(date: Date): string {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+  return local.toISOString().slice(0, 16)
 }
 
 const BREAST_PRESETS = [5, 10, 15, 20, 25, 30]
@@ -43,6 +55,10 @@ export function HomePanel({
   const [confirmationDetail, setConfirmationDetail] = useState('')
   const [customBreastMinutes, setCustomBreastMinutes] = useState('')
   const [customFormulaMl, setCustomFormulaMl] = useState('')
+  const [feedTimestamp, setFeedTimestamp] = useState(() => toDateTimeLocalValue(new Date()))
+  const [nappyOpen, setNappyOpen] = useState(false)
+  const [nappyType, setNappyType] = useState<'wet' | 'dirty' | 'both'>('wet')
+  const [nappyTimestamp, setNappyTimestamp] = useState(() => toDateTimeLocalValue(new Date()))
   const [pendingKey, setPendingKey] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
   const [isPending, startTransition] = useTransition()
@@ -66,6 +82,7 @@ export function HomePanel({
   const customFormulaValue = Number(customFormulaMl)
   const canLogCustomBreast = Number.isFinite(customBreastValue) && customBreastValue > 0
   const canLogCustomFormula = Number.isFinite(customFormulaValue) && customFormulaValue > 0
+  const canLogNappy = Boolean(nappyType && nappyTimestamp)
 
   const ConfirmationToast = () => {
     if (!confirmation) return null
@@ -103,24 +120,44 @@ export function HomePanel({
     })
   }
 
+  function showFeedMode(nextMode: Exclude<QuickLogMode, 'home'>) {
+    setFeedTimestamp(toDateTimeLocalValue(new Date()))
+    setMode(nextMode)
+  }
+
+  function openNappyDialog() {
+    setNappyType('wet')
+    setNappyTimestamp(toDateTimeLocalValue(new Date()))
+    setNappyOpen(true)
+  }
+
   function logFeed(type: 'breast' | 'formula', amount: number) {
+    if (!feedTimestamp) return
     const rounded = Math.round(amount)
     const formData = new FormData()
     formData.set('type', type)
     formData.set('amount', String(rounded))
+    formData.set('timestamp', feedTimestamp)
     runLog(`${type}-${rounded}`, formData, addFeedAction, () => {
       setConfirmation(type)
       setConfirmationDetail(type === 'breast' ? `${rounded}m` : `${rounded}ml`)
       setCustomBreastMinutes('')
       setCustomFormulaMl('')
+      setFeedTimestamp(toDateTimeLocalValue(new Date()))
       setMode('home')
     })
   }
 
-  function logNappy(type: 'wet' | 'dirty' | 'both') {
+  function logNappy() {
+    if (!canLogNappy) return
     const formData = new FormData()
-    formData.set('type', type)
-    runLog(`nappy-${type}`, formData, addNappyAction, () => setConfirmation(type))
+    formData.set('type', nappyType)
+    formData.set('timestamp', nappyTimestamp)
+    runLog(`nappy-${nappyType}`, formData, addNappyAction, () => {
+      setConfirmation(nappyType)
+      setNappyOpen(false)
+      setNappyTimestamp(toDateTimeLocalValue(new Date()))
+    })
   }
 
   const mainContent = useMemo(() => {
@@ -131,9 +168,13 @@ export function HomePanel({
             <p className="text-xl font-semibold text-foreground">Breast feed</p>
             <p className="text-muted-foreground text-sm mt-1">Select duration</p>
           </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="breast-feed-time" className="text-sm text-muted-foreground">Date & time</label>
+            <input id="breast-feed-time" type="datetime-local" value={feedTimestamp} onChange={(event) => setFeedTimestamp(event.target.value)} disabled={isLogging} className="h-12 rounded-xl bg-background border border-border px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
+          </div>
           <div className="grid grid-cols-3 gap-3">
             {BREAST_PRESETS.map(mins => (
-              <button key={mins} onClick={() => logFeed('breast', mins)} disabled={isLogging} className="py-7 rounded-2xl bg-sky-500/15 border-2 border-sky-500/30 text-sky-400 text-2xl font-bold transition-all duration-150 hover:bg-sky-500/25 hover:border-sky-500/50 hover:scale-[1.02] active:bg-sky-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+              <button key={mins} onClick={() => logFeed('breast', mins)} disabled={!feedTimestamp || isLogging} className="py-7 rounded-2xl bg-sky-500/15 border-2 border-sky-500/30 text-sky-400 text-2xl font-bold transition-all duration-150 hover:bg-sky-500/25 hover:border-sky-500/50 hover:scale-[1.02] active:bg-sky-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
                 {mins}m
               </button>
             ))}
@@ -145,7 +186,7 @@ export function HomePanel({
                 <input id="custom-breast-minutes" type="number" inputMode="numeric" min="1" step="1" value={customBreastMinutes} onChange={(event) => setCustomBreastMinutes(event.target.value)} disabled={isLogging} className="h-14 w-full rounded-xl bg-background border border-border px-4 pr-14 text-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50 disabled:opacity-45 disabled:cursor-not-allowed" placeholder="12" />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">min</span>
               </div>
-              <button type="submit" disabled={!canLogCustomBreast || isLogging} className="h-14 px-5 rounded-xl bg-sky-500 text-white font-semibold hover:bg-sky-400 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+              <button type="submit" disabled={!canLogCustomBreast || !feedTimestamp || isLogging} className="h-14 px-5 rounded-xl bg-sky-500 text-white font-semibold hover:bg-sky-400 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                 Log
               </button>
             </div>
@@ -162,9 +203,13 @@ export function HomePanel({
             <p className="text-xl font-semibold text-foreground">Formula</p>
             <p className="text-muted-foreground text-sm mt-1">Select amount</p>
           </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="formula-feed-time" className="text-sm text-muted-foreground">Date & time</label>
+            <input id="formula-feed-time" type="datetime-local" value={feedTimestamp} onChange={(event) => setFeedTimestamp(event.target.value)} disabled={isLogging} className="h-12 rounded-xl bg-background border border-border px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
+          </div>
           <div className="grid grid-cols-3 gap-3">
             {FORMULA_PRESETS.map(ml => (
-              <button key={ml} onClick={() => logFeed('formula', ml)} disabled={isLogging} className="py-7 rounded-2xl bg-amber-500/15 border-2 border-amber-500/30 text-amber-400 text-2xl font-bold transition-all duration-150 hover:bg-amber-500/25 hover:border-amber-500/50 hover:scale-[1.02] active:bg-amber-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+              <button key={ml} onClick={() => logFeed('formula', ml)} disabled={!feedTimestamp || isLogging} className="py-7 rounded-2xl bg-amber-500/15 border-2 border-amber-500/30 text-amber-400 text-2xl font-bold transition-all duration-150 hover:bg-amber-500/25 hover:border-amber-500/50 hover:scale-[1.02] active:bg-amber-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
                 {ml}
               </button>
             ))}
@@ -176,7 +221,7 @@ export function HomePanel({
                 <input id="custom-formula-ml" type="number" inputMode="numeric" min="1" step="1" value={customFormulaMl} onChange={(event) => setCustomFormulaMl(event.target.value)} disabled={isLogging} className="h-14 w-full rounded-xl bg-background border border-border px-4 pr-12 text-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 disabled:opacity-45 disabled:cursor-not-allowed" placeholder="75" />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">ml</span>
               </div>
-              <button type="submit" disabled={!canLogCustomFormula || isLogging} className="h-14 px-5 rounded-xl bg-amber-500 text-white font-semibold hover:bg-amber-400 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+              <button type="submit" disabled={!canLogCustomFormula || !feedTimestamp || isLogging} className="h-14 px-5 rounded-xl bg-amber-500 text-white font-semibold hover:bg-amber-400 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                 Log
               </button>
             </div>
@@ -224,33 +269,61 @@ export function HomePanel({
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Log feed</p>
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => setMode('breast')} disabled={isLogging} className="flex items-center justify-center gap-2 py-6 rounded-2xl bg-sky-500/15 border-2 border-sky-500/30 text-sky-400 transition-all duration-150 hover:bg-sky-500/25 hover:border-sky-500/50 hover:scale-[1.01] active:bg-sky-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+              <button onClick={() => showFeedMode('breast')} disabled={isLogging} className="flex items-center justify-center gap-2 py-6 rounded-2xl bg-sky-500/15 border-2 border-sky-500/30 text-sky-400 transition-all duration-150 hover:bg-sky-500/25 hover:border-sky-500/50 hover:scale-[1.01] active:bg-sky-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
                 <span className="text-xl font-bold">Breast</span>
               </button>
-              <button onClick={() => setMode('formula')} disabled={isLogging} className="flex items-center justify-center gap-2 py-6 rounded-2xl bg-amber-500/15 border-2 border-amber-500/30 text-amber-400 transition-all duration-150 hover:bg-amber-500/25 hover:border-amber-500/50 hover:scale-[1.01] active:bg-amber-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+              <button onClick={() => showFeedMode('formula')} disabled={isLogging} className="flex items-center justify-center gap-2 py-6 rounded-2xl bg-amber-500/15 border-2 border-amber-500/30 text-amber-400 transition-all duration-150 hover:bg-amber-500/25 hover:border-amber-500/50 hover:scale-[1.01] active:bg-amber-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
                 <span className="text-xl font-bold">Formula</span>
               </button>
             </div>
           </div>
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Log nappy</p>
-            <div className="grid grid-cols-3 gap-3">
-              {(['wet', 'dirty', 'both'] as const).map(type => (
-                <button key={type} onClick={() => logNappy(type)} disabled={isLogging} className="flex flex-col items-center justify-center gap-1 py-5 rounded-2xl bg-blue-500/15 border-2 border-blue-500/30 text-blue-400 transition-all duration-150 hover:bg-blue-500/25 hover:border-blue-500/50 hover:scale-[1.02] active:bg-blue-500/35 active:scale-[0.96] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
-                  <span className="text-lg font-bold capitalize">{type}</span>
-                </button>
-              ))}
-            </div>
+            <button onClick={openNappyDialog} disabled={isLogging} className="flex w-full items-center justify-center gap-2 py-6 rounded-2xl bg-violet-500/15 border-2 border-violet-500/30 text-violet-400 transition-all duration-150 hover:bg-violet-500/25 hover:border-violet-500/50 hover:scale-[1.01] active:bg-violet-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+              <span className="text-xl font-bold">Nappy</span>
+            </button>
           </div>
         </div>
       </div>
     )
-  }, [canLogCustomBreast, canLogCustomFormula, customBreastMinutes, customBreastValue, customFormulaMl, customFormulaValue, isLogging, lastFeed, lastNappy, mode, now, summary])
+  }, [canLogCustomBreast, canLogCustomFormula, customBreastMinutes, customBreastValue, customFormulaMl, customFormulaValue, feedTimestamp, isLogging, lastFeed, lastNappy, mode, now, summary])
 
   return (
     <>
       <ConfirmationToast />
       {mainContent}
+      <Dialog open={nappyOpen} onOpenChange={(open) => {
+        if (isLogging) return
+        if (open) openNappyDialog()
+        else setNappyOpen(false)
+      }}>
+        <DialogContent>
+          <form onSubmit={(event) => { event.preventDefault(); logNappy() }} className="flex flex-col gap-5">
+            <DialogHeader>
+              <DialogTitle>Log nappy</DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-3 gap-2">
+              {(['wet', 'dirty', 'both'] as const).map(type => (
+                <button key={type} type="button" onClick={() => setNappyType(type)} disabled={isLogging} className={`h-12 rounded-xl text-sm font-semibold capitalize transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${nappyType === type ? 'bg-violet-500 text-white' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
+                  {type}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="nappy-time" className="text-sm text-muted-foreground">Date & time</label>
+              <input id="nappy-time" type="datetime-local" value={nappyTimestamp} onChange={(event) => setNappyTimestamp(event.target.value)} disabled={isLogging} className="h-12 rounded-xl bg-background border border-border px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
+            </div>
+            <DialogFooter>
+              <button type="button" onClick={() => setNappyOpen(false)} disabled={isLogging} className="h-12 rounded-xl bg-muted px-5 text-sm font-semibold text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed">
+                Cancel
+              </button>
+              <button type="submit" disabled={!canLogNappy || isLogging} className="h-12 rounded-xl bg-violet-500 px-5 text-sm font-semibold text-white hover:bg-violet-400 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                Log
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

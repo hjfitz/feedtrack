@@ -22,6 +22,12 @@ function getNumber(formData: FormData, key: string) {
   return Number.isFinite(value) ? value : undefined
 }
 
+function getTimestamp(formData: FormData) {
+  const value = getString(formData, 'timestamp')
+  const timestamp = value ? new Date(value) : null
+  return timestamp && !Number.isNaN(timestamp.getTime()) ? timestamp : new Date()
+}
+
 function revalidateTrackerPages() {
   revalidatePath('/')
   revalidatePath('/history')
@@ -34,7 +40,7 @@ export async function addFeedAction(formData: FormData) {
 
   await addFeed(householdId, {
     type,
-    timestamp: new Date(),
+    timestamp: getTimestamp(formData),
     durationSeconds: type === 'breast' && amount ? Math.round(amount) * 60 : undefined,
     volumeMl: type === 'formula' && amount ? Math.round(amount) : undefined,
   })
@@ -45,7 +51,7 @@ export async function addNappyAction(formData: FormData) {
   const householdId = await requireSessionHouseholdId()
   await addNappy(householdId, {
     type: getString(formData, 'type') as NappyType,
-    timestamp: new Date(),
+    timestamp: getTimestamp(formData),
   })
   revalidateTrackerPages()
 }
@@ -84,4 +90,3 @@ export async function deleteNappyAction(formData: FormData) {
   await deleteNappy(householdId, getString(formData, 'id'))
   revalidateTrackerPages()
 }
-
