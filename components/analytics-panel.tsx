@@ -158,12 +158,14 @@ function EmptyChart({ label }: { label: string }) {
 
 export function AnalyticsPanel({
   data,
+  hourlyData,
   feedTimestamps,
   initialRange,
   initialCategory,
   initialFeedView,
 }: {
   data: DailyData[]
+  hourlyData: DailyData[]
   feedTimestamps: string[]
   initialRange: RangeOption
   initialCategory: CategoryOption
@@ -195,9 +197,9 @@ export function AnalyticsPanel({
     router.replace(`/analytics?${params.toString()}`, { scroll: false })
   }
 
-  const rangeDays = range === '1d' ? 1 : range === '7d' ? 7 : 30
-  const chartData = useMemo(() => data.slice(-rangeDays), [data, rangeDays])
-  const previousData = useMemo(() => data.slice(-(rangeDays * 2), -rangeDays), [data, rangeDays])
+  const rangeDays = range === '7d' ? 7 : 30
+  const chartData = useMemo(() => range === '1d' ? hourlyData : data.slice(-rangeDays), [data, hourlyData, range, rangeDays])
+  const previousData = useMemo(() => range === '1d' ? data.slice(-2, -1) : data.slice(-(rangeDays * 2), -rangeDays), [data, range, rangeDays])
 
   const summary = useMemo(() => {
     const totals = sumData(chartData)
@@ -222,12 +224,12 @@ export function AnalyticsPanel({
       formulaPerFeed: avg(totals.formulaMl, totals.formulaCount),
       breastPerFeed: avg(totals.breastMins, Math.max(totals.breastCount - totals.breastMilkCount, 0)),
       breastMilkPerFeed: avg(totals.breastMilkMl, totals.breastMilkCount),
-      feedsPerDay: avg(totals.feedCount, chartData.length, 1),
-      nappiesPerDay: avg(totals.totalNappies, chartData.length, 1),
+      feedsPerDay: avg(totals.feedCount, range === '1d' ? 1 : chartData.length, 1),
+      nappiesPerDay: avg(totals.totalNappies, range === '1d' ? 1 : chartData.length, 1),
       avgGap,
       longestGap,
     }
-  }, [chartData, feedTimestamps, previousData])
+  }, [chartData, feedTimestamps, previousData, range])
 
   const hasFeedData = summary.totals.feedCount > 0
   const hasFormulaData = summary.totals.formulaMl > 0

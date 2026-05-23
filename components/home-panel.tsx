@@ -292,7 +292,7 @@ export function HomePanel({
         </div>
         <div className="rounded-2xl bg-muted/30 p-4 border border-muted/50">
           <p className="text-xs text-muted-foreground uppercase tracking-wide mb-3">Today</p>
-          <div className="flex flex-col gap-2 text-center">
+          <div className="grid grid-cols-3 gap-2 text-center">
             <div className="rounded-xl bg-sky-500/10 border border-sky-500/20 px-2 py-3 min-w-0">
               <p className="text-xs text-muted-foreground">Breast</p>
               <div className="mt-2 flex flex-col gap-1 text-xs font-semibold text-sky-400 tabular-nums">
