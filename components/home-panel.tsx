@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { formatAppDateTimeLocal } from '@/lib/timezone'
 import type { DailySummary, FeedEntry, NappyEntry } from '@/lib/types'
 
 function formatTimeSince(date: Date | null, now: Date): string {
@@ -28,11 +29,6 @@ function formatSummaryMinutes(minutes: number): string {
   const hours = Math.floor(minutes / 60)
   const mins = minutes % 60
   return mins ? `${hours}h ${mins}m` : `${hours}h`
-}
-
-function toDateTimeLocalValue(date: Date): string {
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-  return local.toISOString().slice(0, 16)
 }
 
 const BREAST_PRESETS = [5, 10, 15, 20, 25, 30]
@@ -55,10 +51,10 @@ export function HomePanel({
   const [confirmationDetail, setConfirmationDetail] = useState('')
   const [customBreastMinutes, setCustomBreastMinutes] = useState('')
   const [customFormulaMl, setCustomFormulaMl] = useState('')
-  const [feedTimestamp, setFeedTimestamp] = useState(() => toDateTimeLocalValue(new Date()))
+  const [feedTimestamp, setFeedTimestamp] = useState(() => formatAppDateTimeLocal(new Date()))
   const [nappyOpen, setNappyOpen] = useState(false)
   const [nappyType, setNappyType] = useState<'wet' | 'dirty' | 'both'>('wet')
-  const [nappyTimestamp, setNappyTimestamp] = useState(() => toDateTimeLocalValue(new Date()))
+  const [nappyTimestamp, setNappyTimestamp] = useState(() => formatAppDateTimeLocal(new Date()))
   const [pendingKey, setPendingKey] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
   const [isPending, startTransition] = useTransition()
@@ -121,13 +117,13 @@ export function HomePanel({
   }
 
   function showFeedMode(nextMode: Exclude<QuickLogMode, 'home'>) {
-    setFeedTimestamp(toDateTimeLocalValue(new Date()))
+    setFeedTimestamp(formatAppDateTimeLocal(new Date()))
     setMode(nextMode)
   }
 
   function openNappyDialog() {
     setNappyType('wet')
-    setNappyTimestamp(toDateTimeLocalValue(new Date()))
+    setNappyTimestamp(formatAppDateTimeLocal(new Date()))
     setNappyOpen(true)
   }
 
@@ -143,7 +139,7 @@ export function HomePanel({
       setConfirmationDetail(type === 'breast' ? `${rounded}m` : `${rounded}ml`)
       setCustomBreastMinutes('')
       setCustomFormulaMl('')
-      setFeedTimestamp(toDateTimeLocalValue(new Date()))
+      setFeedTimestamp(formatAppDateTimeLocal(new Date()))
       setMode('home')
     })
   }
@@ -156,7 +152,7 @@ export function HomePanel({
     runLog(`nappy-${nappyType}`, formData, addNappyAction, () => {
       setConfirmation(nappyType)
       setNappyOpen(false)
-      setNappyTimestamp(toDateTimeLocalValue(new Date()))
+      setNappyTimestamp(formatAppDateTimeLocal(new Date()))
     })
   }
 

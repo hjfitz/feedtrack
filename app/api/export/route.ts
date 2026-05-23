@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getHouseholdData } from '@/lib/server/blob-storage'
 import { parseDate, requireHouseholdId } from '@/lib/server/http'
+import { formatAppDate, formatAppTime } from '@/lib/timezone'
 
 export async function GET(request: Request) {
   const { householdId, response } = await requireHouseholdId()
@@ -45,8 +46,8 @@ export async function GET(request: Request) {
     .forEach(entry => {
       lines.push([
         entry.type,
-        entry.timestamp.toLocaleDateString(),
-        entry.timestamp.toLocaleTimeString(),
+        formatAppDate(entry.timestamp, { day: '2-digit', month: '2-digit', year: 'numeric' }),
+        formatAppTime(entry.timestamp),
         `"${entry.details.replace(/"/g, '""')}"`,
       ].join(','))
     })

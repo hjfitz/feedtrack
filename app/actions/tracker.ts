@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireSessionHouseholdId } from '@/lib/server/auth'
+import { parseAppDateTimeLocal } from '@/lib/timezone'
 import {
   addFeed,
   addNappy,
@@ -24,7 +25,7 @@ function getNumber(formData: FormData, key: string) {
 
 function getTimestamp(formData: FormData) {
   const value = getString(formData, 'timestamp')
-  const timestamp = value ? new Date(value) : null
+  const timestamp = value ? parseAppDateTimeLocal(value) || new Date(value) : null
   return timestamp && !Number.isNaN(timestamp.getTime()) ? timestamp : new Date()
 }
 
@@ -63,7 +64,7 @@ export async function updateFeedAction(formData: FormData) {
 
   await updateFeed(householdId, getString(formData, 'id'), {
     type,
-    timestamp: new Date(getString(formData, 'timestamp')),
+    timestamp: getTimestamp(formData),
     durationSeconds: type === 'breast' && amount ? Math.round(amount) * 60 : undefined,
     volumeMl: type === 'formula' && amount ? Math.round(amount) : undefined,
   })
@@ -80,7 +81,7 @@ export async function updateNappyAction(formData: FormData) {
   const householdId = await requireSessionHouseholdId()
   await updateNappy(householdId, getString(formData, 'id'), {
     type: getString(formData, 'type') as NappyType,
-    timestamp: new Date(getString(formData, 'timestamp')),
+    timestamp: getTimestamp(formData),
   })
   revalidateTrackerPages()
 }

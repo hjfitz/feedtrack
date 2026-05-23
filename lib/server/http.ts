@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSessionHouseholdId } from '@/lib/server/auth'
+import { parseAppDateTimeLocal } from '@/lib/timezone'
 
 export function jsonError(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status })
@@ -28,6 +29,10 @@ export function generateId() {
 }
 
 export function parseDate(value: unknown) {
-  const date = typeof value === 'string' || value instanceof Date ? new Date(value) : null
+  const date = typeof value === 'string'
+    ? parseAppDateTimeLocal(value) || new Date(value)
+    : value instanceof Date
+      ? value
+      : null
   return date && !Number.isNaN(date.getTime()) ? date : null
 }

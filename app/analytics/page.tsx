@@ -7,8 +7,8 @@ import {
 } from '@/components/analytics-panel'
 import { requireSessionHouseholdId } from '@/lib/server/auth'
 import { getFeeds, getNappies } from '@/lib/server/tracker'
+import { addAppDays, appDateKey, formatAppDate, startOfAppDay } from '@/lib/timezone'
 
-const ANALYTICS_TIME_ZONE = 'Europe/London'
 const DAYS_TO_LOAD = 60
 
 function validRange(value: string | undefined): RangeOption {
@@ -23,32 +23,8 @@ function validFeedView(value: string | undefined): FeedViewOption {
   return value === 'combined' || value === 'breast' || value === 'formula' ? value : 'combined'
 }
 
-function zonedDateParts(date: Date) {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: ANALYTICS_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date)
-
-  return {
-    year: parts.find(part => part.type === 'year')?.value ?? '0000',
-    month: parts.find(part => part.type === 'month')?.value ?? '00',
-    day: parts.find(part => part.type === 'day')?.value ?? '00',
-  }
-}
-
-function dateKey(date: Date) {
-  const parts = zonedDateParts(date)
-  return `${parts.year}-${parts.month}-${parts.day}`
-}
-
 function chartLabel(date: Date) {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone: ANALYTICS_TIME_ZONE,
-    month: 'short',
-    day: 'numeric',
-  }).format(date)
+  return formatAppDate(date, { month: 'short', day: 'numeric' })
 }
 
 export default async function AnalyticsPage({
@@ -68,15 +44,13 @@ export default async function AnalyticsPage({
     getNappies(householdId, since),
   ])
 
-  const now = new Date()
+  const todayStart = startOfAppDay()
   const dailyData = Array.from({ length: DAYS_TO_LOAD }, (_, index) => {
-    const d = new Date(now)
-    d.setHours(12, 0, 0, 0)
-    d.setDate(d.getDate() - (DAYS_TO_LOAD - 1 - index))
+    const d = addAppDays(todayStart, -(DAYS_TO_LOAD - 1 - index))
 
     return {
       date: chartLabel(d),
-      rawDate: dateKey(d),
+      rawDate: appDateKey(d),
       feedCount: 0,
       formulaCount: 0,
       breastCount: 0,
@@ -95,7 +69,7 @@ export default async function AnalyticsPage({
   const feedTimestamps: string[] = []
 
   feeds.forEach(feed => {
-    const day = dayMap.get(dateKey(new Date(feed.timestamp)))
+    const day = dayMap.get(appDateKey(new Date(feed.timestamp)))
     if (!day) return
 
     day.feedCount += 1
@@ -111,7 +85,7 @@ export default async function AnalyticsPage({
   })
 
   nappies.forEach(nappy => {
-    const day = dayMap.get(dateKey(new Date(nappy.timestamp)))
+    const day = dayMap.get(appDateKey(new Date(nappy.timestamp)))
     if (!day) return
 
     if (nappy.type === 'wet') {

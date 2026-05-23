@@ -15,6 +15,7 @@ import {
   setUser,
 } from '@/lib/server/blob-storage'
 import { calculateSummary } from '@/lib/server/summaries'
+import { parseAppDateTimeLocal, startOfAppDay } from '@/lib/timezone'
 import type { DailySummary, FeedEntry, FeedType, NappyEntry, NappyType } from '@/lib/types'
 
 const INVITE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -30,7 +31,11 @@ export function generateId() {
 }
 
 export function parseDate(value: unknown) {
-  const date = typeof value === 'string' || value instanceof Date ? new Date(value) : null
+  const date = typeof value === 'string'
+    ? parseAppDateTimeLocal(value) || new Date(value)
+    : value instanceof Date
+      ? value
+      : null
   return date && !Number.isNaN(date.getTime()) ? date : null
 }
 
@@ -72,8 +77,7 @@ export async function getNappies(householdId: string, since?: Date | null) {
 
 export async function getTodaySummary(householdId: string): Promise<DailySummary> {
   const now = new Date()
-  const start = new Date(now)
-  start.setHours(0, 0, 0, 0)
+  const start = startOfAppDay(now)
   const [feeds, nappies] = await Promise.all([
     getHouseholdData(householdId, 'feeds'),
     getHouseholdData(householdId, 'nappies'),

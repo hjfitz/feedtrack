@@ -1,4 +1,5 @@
 import { BottomNav } from '@/components/bottom-nav'
+import { formatAppDate } from '@/lib/timezone'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -7,7 +8,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Baby Tracker</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {new Date().toLocaleDateString('en-GB', {
+            {formatAppDate(new Date(), {
               weekday: 'long',
               day: 'numeric',
               month: 'long',

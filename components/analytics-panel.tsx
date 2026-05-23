@@ -14,8 +14,7 @@ import {
   CartesianGrid,
 } from 'recharts'
 import { Baby, Clock3, Droplets, Flame, GlassWater, Layers3 } from 'lucide-react'
-
-const ANALYTICS_TIME_ZONE = 'Europe/London'
+import { appDateKey } from '@/lib/timezone'
 
 interface DailyData {
   date: string
@@ -53,19 +52,6 @@ interface TooltipContentProps {
 
 function compactNumber(value: number) {
   return new Intl.NumberFormat('en-GB').format(value)
-}
-
-function dateKey(date: Date) {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: ANALYTICS_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date)
-  const year = parts.find(part => part.type === 'year')?.value ?? '0000'
-  const month = parts.find(part => part.type === 'month')?.value ?? '00'
-  const day = parts.find(part => part.type === 'day')?.value ?? '00'
-  return `${year}-${month}-${day}`
 }
 
 function formatHours(minutes: number) {
@@ -217,7 +203,7 @@ export function AnalyticsPanel({
     const start = chartData[0]?.rawDate
     const end = chartData[chartData.length - 1]?.rawDate
     const rangeFeedTimes = timestamps.filter(value => {
-      const key = dateKey(new Date(value))
+      const key = appDateKey(new Date(value))
       return (!start || key >= start) && (!end || key <= end)
     })
     const gaps = rangeFeedTimes.slice(1).map((value, index) => Math.round((value - rangeFeedTimes[index]) / 60000))

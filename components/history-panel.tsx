@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { Check, Download, Pencil, Trash2, X } from 'lucide-react'
 import { deleteFeedAction, deleteNappyAction, updateFeedAction, updateNappyAction } from '@/app/actions/tracker'
+import { appDateKey, formatAppDate, formatAppDateTimeLocal, formatAppTime } from '@/lib/timezone'
 import type { FeedEntry, NappyEntry } from '@/lib/types'
 
 export type FilterType = 'all' | 'feeds' | 'nappies'
@@ -17,25 +18,20 @@ interface HistoryItem {
 }
 
 function formatTime(date: Date): string {
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return formatAppTime(date)
 }
 
 function formatDate(date: Date): string {
   const today = new Date()
   const yesterday = new Date(today)
   yesterday.setDate(yesterday.getDate() - 1)
-  if (date.toDateString() === today.toDateString()) return 'Today'
-  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
-  return date.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })
+  if (appDateKey(date) === appDateKey(today)) return 'Today'
+  if (appDateKey(date) === appDateKey(yesterday)) return 'Yesterday'
+  return formatAppDate(date, { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
 function formatDuration(seconds: number): string {
   return `${Math.floor(seconds / 60)}m`
-}
-
-function toDateTimeLocalValue(date: Date): string {
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-  return local.toISOString().slice(0, 16)
 }
 
 function filterHref(type: FilterType, range: TimeRange) {
@@ -68,7 +64,7 @@ function FeedItem({ feed }: { feed: FeedEntry }) {
   const [editing, setEditing] = useState(false)
   const [type, setType] = useState(feed.type)
   const [amount, setAmount] = useState(feed.type === 'breast' ? String(Math.round((feed.durationSeconds || 0) / 60)) : String(feed.volumeMl || ''))
-  const [timestamp, setTimestamp] = useState(toDateTimeLocalValue(feed.timestamp))
+  const [timestamp, setTimestamp] = useState(formatAppDateTimeLocal(feed.timestamp))
   const [isPending, startTransition] = useTransition()
   const isBreast = feed.type === 'breast'
   const amountValue = Number(amount)
@@ -146,7 +142,7 @@ function FeedItem({ feed }: { feed: FeedEntry }) {
 function NappyItem({ nappy }: { nappy: NappyEntry }) {
   const [editing, setEditing] = useState(false)
   const [type, setType] = useState(nappy.type)
-  const [timestamp, setTimestamp] = useState(toDateTimeLocalValue(nappy.timestamp))
+  const [timestamp, setTimestamp] = useState(formatAppDateTimeLocal(nappy.timestamp))
   const [isPending, startTransition] = useTransition()
   const colors: Record<string, { bg: string; text: string }> = {
     wet: { bg: 'bg-blue-500/20', text: 'text-blue-400' },

@@ -2,6 +2,7 @@ import { AppShell } from '@/components/app-shell'
 import { HistoryPanel } from '@/components/history-panel'
 import { requireSessionHouseholdId } from '@/lib/server/auth'
 import { getFeeds, getNappies } from '@/lib/server/tracker'
+import { appDateKey, formatAppDate, startOfAppDay } from '@/lib/timezone'
 import type { FeedEntry, NappyEntry } from '@/lib/types'
 import type { FilterType, TimeRange } from '@/components/history-panel'
 
@@ -23,9 +24,7 @@ function validRange(value: string | undefined): TimeRange {
 function rangeStart(range: TimeRange) {
   const now = new Date()
   if (range === 'today') {
-    const start = new Date(now)
-    start.setHours(0, 0, 0, 0)
-    return start
+    return startOfAppDay(now)
   }
   if (range === '12h') return new Date(now.getTime() - 12 * 60 * 60 * 1000)
   if (range === '24h') return new Date(now.getTime() - 24 * 60 * 60 * 1000)
@@ -36,9 +35,9 @@ function formatDate(date: Date): string {
   const today = new Date()
   const yesterday = new Date(today)
   yesterday.setDate(yesterday.getDate() - 1)
-  if (date.toDateString() === today.toDateString()) return 'Today'
-  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
-  return date.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })
+  if (appDateKey(date) === appDateKey(today)) return 'Today'
+  if (appDateKey(date) === appDateKey(yesterday)) return 'Yesterday'
+  return formatAppDate(date, { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
 function groupItems(items: HistoryItem[]) {
