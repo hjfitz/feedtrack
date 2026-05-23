@@ -13,6 +13,8 @@ export interface InviteRecord {
 
 export interface HouseholdMeta {
   inviteCode: string
+  babyName?: string
+  babyDob?: string
 }
 
 interface StoredHouseholdData {

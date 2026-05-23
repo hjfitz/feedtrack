@@ -17,7 +17,7 @@ function formatTimeSince(date: Date | null, now: Date): string {
   const diffMins = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 60000))
   const hours = Math.floor(diffMins / 60)
   const mins = diffMins % 60
-  return hours === 0 ? `${mins}m ago` : `${hours}h ${mins}m ago`
+  return `${hours}h ${mins}m`
 }
 
 function formatDurationMins(seconds: number): string {
@@ -132,8 +132,8 @@ export function HomePanel({
     setMode(nextMode)
   }
 
-  function openNappyDialog() {
-    setNappyType('wet')
+  function openNappyDialog(type: 'wet' | 'dirty' | 'both' = 'wet') {
+    setNappyType(type)
     setNappyTimestamp(formatAppDateTimeLocal(new Date()))
     setNappyOpen(true)
   }
@@ -281,23 +281,25 @@ export function HomePanel({
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-2xl bg-muted/50 p-4 text-center border border-muted">
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Since feed</p>
-            <p className="text-3xl font-bold text-foreground tabular-nums">{formatTimeSince(lastFeed?.timestamp ?? null, now)}</p>
+            <p className="whitespace-nowrap text-2xl font-bold text-foreground tabular-nums sm:text-3xl">{formatTimeSince(lastFeed?.timestamp ?? null, now)}</p>
             {lastFeed && <p className="text-sm text-muted-foreground mt-1">{formatFeedDetail(lastFeed)}</p>}
           </div>
           <div className="rounded-2xl bg-muted/50 p-4 text-center border border-muted">
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Since nappy</p>
-            <p className="text-3xl font-bold text-foreground tabular-nums">{formatTimeSince(lastNappy?.timestamp ?? null, now)}</p>
+            <p className="whitespace-nowrap text-2xl font-bold text-foreground tabular-nums sm:text-3xl">{formatTimeSince(lastNappy?.timestamp ?? null, now)}</p>
             {lastNappy && <p className="text-sm text-muted-foreground mt-1 capitalize">{lastNappy.type === 'both' ? 'Wet + Dirty' : lastNappy.type}</p>}
           </div>
         </div>
         <div className="rounded-2xl bg-muted/30 p-4 border border-muted/50">
           <p className="text-xs text-muted-foreground uppercase tracking-wide mb-3">Today</p>
-          <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="grid grid-cols-4 gap-2 text-center">
             <div className="rounded-xl bg-sky-500/10 border border-sky-500/20 px-2 py-3 min-w-0">
-              <p className="text-2xl font-bold text-foreground">{summary.breastFeedCount}</p>
               <p className="text-xs text-muted-foreground">Breast</p>
-              <p className="text-sm font-semibold text-sky-400 mt-2 tabular-nums">{formatSummaryMinutes(summary.totalBreastMinutes)}</p>
-              {summary.totalBreastMilkMl > 0 && <p className="text-sm font-semibold text-cyan-400 tabular-nums">{summary.totalBreastMilkMl}ml</p>}
+              <p className="text-lg font-bold text-sky-400 mt-2 tabular-nums">{formatSummaryMinutes(summary.totalBreastMinutes)}</p>
+            </div>
+            <div className="rounded-xl bg-cyan-500/10 border border-cyan-500/20 px-2 py-3 min-w-0">
+              <p className="text-xs text-muted-foreground">Pumped</p>
+              <p className="text-lg font-bold text-cyan-400 mt-2 tabular-nums">{summary.totalBreastMilkMl}ml</p>
             </div>
             <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-2 py-3 min-w-0">
               <p className="text-2xl font-bold text-foreground">{summary.formulaFeedCount}</p>
@@ -307,30 +309,33 @@ export function HomePanel({
             <div className="rounded-xl bg-violet-500/10 border border-violet-500/20 px-2 py-3 min-w-0">
               <p className="text-2xl font-bold text-foreground">{summary.nappyCount}</p>
               <p className="text-xs text-muted-foreground">Nappies</p>
-              <p className="text-sm font-semibold text-violet-400 mt-2 tabular-nums">{summary.wetCount}W {summary.dirtyCount}D</p>
+              <p className="text-xs font-semibold text-violet-400 mt-2 tabular-nums whitespace-nowrap">{summary.wetCount} wet · {summary.dirtyCount} dirty</p>
             </div>
           </div>
         </div>
-        <div className="flex flex-col gap-4">
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Log feed</p>
-            <div className="grid grid-cols-3 gap-3">
-              <button onClick={() => showFeedMode('breast')} disabled={isLogging} className="flex items-center justify-center gap-2 py-6 rounded-2xl bg-sky-500/15 border-2 border-sky-500/30 text-sky-400 transition-all duration-150 hover:bg-sky-500/25 hover:border-sky-500/50 hover:scale-[1.01] active:bg-sky-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
-                <span className="text-xl font-bold">Breast</span>
-              </button>
-              <button onClick={() => showFeedMode('expressed')} disabled={isLogging} className="flex items-center justify-center gap-2 py-6 rounded-2xl bg-cyan-500/15 border-2 border-cyan-500/30 text-cyan-400 transition-all duration-150 hover:bg-cyan-500/25 hover:border-cyan-500/50 hover:scale-[1.01] active:bg-cyan-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
-                <span className="text-xl font-bold">Milk</span>
-              </button>
-              <button onClick={() => showFeedMode('formula')} disabled={isLogging} className="flex items-center justify-center gap-2 py-6 rounded-2xl bg-amber-500/15 border-2 border-amber-500/30 text-amber-400 transition-all duration-150 hover:bg-amber-500/25 hover:border-amber-500/50 hover:scale-[1.01] active:bg-amber-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
-                <span className="text-xl font-bold">Formula</span>
-              </button>
-            </div>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Log</p>
+            <div className="h-px flex-1 bg-border" />
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Log nappy</p>
-            <button onClick={openNappyDialog} disabled={isLogging} className="flex w-full items-center justify-center gap-2 py-6 rounded-2xl bg-violet-500/15 border-2 border-violet-500/30 text-violet-400 transition-all duration-150 hover:bg-violet-500/25 hover:border-violet-500/50 hover:scale-[1.01] active:bg-violet-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
-              <span className="text-xl font-bold">Nappy</span>
+          <div className="grid grid-cols-3 gap-3">
+            <button onClick={() => showFeedMode('breast')} disabled={isLogging} className="flex h-20 items-center justify-center rounded-2xl bg-sky-500/15 border-2 border-sky-500/30 text-sky-400 transition-all duration-150 hover:bg-sky-500/25 hover:border-sky-500/50 hover:scale-[1.01] active:bg-sky-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+              <span className="text-lg font-bold">Breast</span>
             </button>
+            <button onClick={() => showFeedMode('expressed')} disabled={isLogging} className="flex h-20 items-center justify-center rounded-2xl bg-cyan-500/15 border-2 border-cyan-500/30 text-cyan-400 transition-all duration-150 hover:bg-cyan-500/25 hover:border-cyan-500/50 hover:scale-[1.01] active:bg-cyan-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+              <span className="text-lg font-bold">Pumped</span>
+            </button>
+            <button onClick={() => showFeedMode('formula')} disabled={isLogging} className="flex h-20 items-center justify-center rounded-2xl bg-amber-500/15 border-2 border-amber-500/30 text-amber-400 transition-all duration-150 hover:bg-amber-500/25 hover:border-amber-500/50 hover:scale-[1.01] active:bg-amber-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+              <span className="text-lg font-bold">Formula</span>
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {(['wet', 'dirty', 'both'] as const).map(type => (
+              <button key={type} onClick={() => openNappyDialog(type)} disabled={isLogging} className="flex h-20 items-center justify-center rounded-2xl bg-violet-500/15 border-2 border-violet-500/30 text-violet-400 transition-all duration-150 hover:bg-violet-500/25 hover:border-violet-500/50 hover:scale-[1.01] active:bg-violet-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+                <span className="text-lg font-bold capitalize">{type}</span>
+              </button>
+            ))}
           </div>
         </div>
       </div>
