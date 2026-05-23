@@ -1,6 +1,7 @@
 import { AppShell } from '@/components/app-shell'
 import { HistoryPanel } from '@/components/history-panel'
 import { requireSessionHouseholdId } from '@/lib/server/auth'
+import { getHouseholdMeta } from '@/lib/server/blob-storage'
 import { getFeeds, getNappies } from '@/lib/server/tracker'
 import { appDateKey, formatAppDate, startOfAppDay } from '@/lib/timezone'
 import type { FeedEntry, NappyEntry } from '@/lib/types'
@@ -64,9 +65,10 @@ export default async function HistoryPage({
   const type = validType(params.type)
   const range = validRange(params.range)
   const start = rangeStart(range)
-  const [feeds, nappies] = await Promise.all([
+  const [feeds, nappies, meta] = await Promise.all([
     type === 'nappies' ? Promise.resolve([]) : getFeeds(householdId, start),
     type === 'feeds' ? Promise.resolve([]) : getNappies(householdId, start),
+    getHouseholdMeta(householdId),
   ])
   const items: HistoryItem[] = [
     ...feeds.map(feed => ({ id: feed.id, type: 'feed' as const, timestamp: new Date(feed.timestamp), data: feed })),
@@ -75,7 +77,7 @@ export default async function HistoryPage({
   const exportHref = `/api/export?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(new Date().toISOString())}`
 
   return (
-    <AppShell>
+    <AppShell babyName={meta?.babyName} babyDob={meta?.babyDob}>
       <HistoryPanel
         items={items}
         groupedItems={groupItems(items)}

@@ -295,15 +295,26 @@ export function HomePanel({
           <div className="flex flex-col gap-2 text-center">
             <div className="rounded-xl bg-sky-500/10 border border-sky-500/20 px-2 py-3 min-w-0">
               <p className="text-xs text-muted-foreground">Breast</p>
-              <p className="text-xs font-semibold text-sky-400 mt-2 tabular-nums whitespace-nowrap">{summary.breastFeedCount} feeds · {formatSummaryMinutes(summary.totalBreastMinutes)} · {summary.totalBreastMilkMl}ml</p>
+              <div className="mt-2 flex flex-col gap-1 text-xs font-semibold text-sky-400 tabular-nums">
+                <p>{summary.breastFeedCount} feeds</p>
+                <p>{formatSummaryMinutes(summary.totalBreastMinutes)}</p>
+                <p>{summary.totalBreastMilkMl}ml</p>
+              </div>
             </div>
             <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-2 py-3 min-w-0">
               <p className="text-xs text-muted-foreground">Formula</p>
-              <p className="text-xs font-semibold text-amber-400 mt-2 tabular-nums whitespace-nowrap">{summary.formulaFeedCount} feeds · {summary.totalFormulaMl}ml</p>
+              <div className="mt-2 flex flex-col gap-1 text-xs font-semibold text-amber-400 tabular-nums">
+                <p>{summary.formulaFeedCount} feeds</p>
+                <p>{summary.totalFormulaMl}ml</p>
+              </div>
             </div>
             <div className="rounded-xl bg-violet-500/10 border border-violet-500/20 px-2 py-3 min-w-0">
               <p className="text-xs text-muted-foreground">Nappies</p>
-              <p className="text-xs font-semibold text-violet-400 mt-2 tabular-nums whitespace-nowrap">{summary.nappyCount} · {summary.wetCount} wet · {summary.dirtyCount} dirty</p>
+              <div className="mt-2 flex flex-col gap-1 text-xs font-semibold text-violet-400 tabular-nums">
+                <p>{summary.nappyCount} total</p>
+                <p>{summary.wetCount} wet</p>
+                <p>{summary.dirtyCount} dirty</p>
+              </div>
             </div>
           </div>
         </div>

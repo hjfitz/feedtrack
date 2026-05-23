@@ -8,7 +8,7 @@ export default async function SettingsPage() {
   const meta = await getHouseholdMeta(householdId)
 
   return (
-    <AppShell>
+    <AppShell babyName={meta?.babyName} babyDob={meta?.babyDob}>
       <SettingsPanel
         inviteCode={meta?.inviteCode || null}
         babyName={meta?.babyName || ''}

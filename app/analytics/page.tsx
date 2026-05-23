@@ -6,13 +6,14 @@ import {
   type RangeOption,
 } from '@/components/analytics-panel'
 import { requireSessionHouseholdId } from '@/lib/server/auth'
+import { getHouseholdMeta } from '@/lib/server/blob-storage'
 import { getFeeds, getNappies } from '@/lib/server/tracker'
 import { addAppDays, appDateKey, formatAppDate, startOfAppDay } from '@/lib/timezone'
 
 const DAYS_TO_LOAD = 60
 
 function validRange(value: string | undefined): RangeOption {
-  return value === '30d' || value === '7d' ? value : '7d'
+  return value === '1d' || value === '30d' || value === '7d' ? value : '7d'
 }
 
 function validCategory(value: string | undefined): CategoryOption {
@@ -39,9 +40,10 @@ export default async function AnalyticsPage({
   const initialFeedView = validFeedView(params.feed)
 
   const since = new Date(Date.now() - DAYS_TO_LOAD * 24 * 60 * 60 * 1000)
-  const [feeds, nappies] = await Promise.all([
+  const [feeds, nappies, meta] = await Promise.all([
     getFeeds(householdId, since),
     getNappies(householdId, since),
+    getHouseholdMeta(householdId),
   ])
 
   const todayStart = startOfAppDay()
@@ -107,7 +109,7 @@ export default async function AnalyticsPage({
   })
 
   return (
-    <AppShell>
+    <AppShell babyName={meta?.babyName} babyDob={meta?.babyDob}>
       <AnalyticsPanel
         data={dailyData}
         feedTimestamps={feedTimestamps}

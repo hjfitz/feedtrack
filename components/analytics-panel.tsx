@@ -34,7 +34,7 @@ interface DailyData {
   totalNappies: number
 }
 
-export type RangeOption = '7d' | '30d'
+export type RangeOption = '1d' | '7d' | '30d'
 export type CategoryOption = 'feeds' | 'nappies'
 export type FeedViewOption = 'combined' | 'formula' | 'breast'
 
@@ -195,7 +195,7 @@ export function AnalyticsPanel({
     router.replace(`/analytics?${params.toString()}`, { scroll: false })
   }
 
-  const rangeDays = range === '7d' ? 7 : 30
+  const rangeDays = range === '1d' ? 1 : range === '7d' ? 7 : 30
   const chartData = useMemo(() => data.slice(-rangeDays), [data, rangeDays])
   const previousData = useMemo(() => data.slice(-(rangeDays * 2), -rangeDays), [data, rangeDays])
 
@@ -254,7 +254,7 @@ export function AnalyticsPanel({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex justify-between items-center bg-muted/30 p-1 rounded-xl border border-muted/50">
-        {(['7d', '30d'] as RangeOption[]).map(option => (
+        {(['1d', '7d', '30d'] as RangeOption[]).map(option => (
           <button
             key={option}
             onClick={() => updateFilters({ range: option })}
@@ -262,7 +262,7 @@ export function AnalyticsPanel({
               range === option ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            {option === '7d' ? 'Last 7 Days' : 'Last 30 Days'}
+            {option === '1d' ? 'Today' : option === '7d' ? 'Last 7 Days' : 'Last 30 Days'}
           </button>
         ))}
       </div>
@@ -508,7 +508,7 @@ export function AnalyticsPanel({
           </div>
           <div className="flex items-center gap-2 rounded-xl border border-muted/30 bg-muted/10 p-3">
             <Droplets className="h-4 w-4 text-violet-400" />
-            <span>{range === '7d' ? '7' : '30'} day view</span>
+            <span>{range === '1d' ? '1' : range === '7d' ? '7' : '30'} day view</span>
           </div>
         </div>
       )}
