@@ -27,6 +27,7 @@ export function calculateSummary(
     totalBreastMinutes: Math.round(
       breastFeeds.reduce((sum, feed) => sum + (feed.durationSeconds || 0), 0) / 60
     ),
+    totalBreastMilkMl: breastFeeds.reduce((sum, feed) => sum + (feed.volumeMl || 0), 0),
     nappyCount: nappiesInRange.length,
     wetCount: nappiesInRange.filter(nappy => nappy.type === 'wet' || nappy.type === 'both').length,
     dirtyCount: nappiesInRange.filter(nappy => nappy.type === 'dirty' || nappy.type === 'both').length,

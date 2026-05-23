@@ -56,6 +56,8 @@ export default async function AnalyticsPage({
       breastCount: 0,
       formulaMl: 0,
       breastMins: 0,
+      breastMilkMl: 0,
+      breastMilkCount: 0,
       wetOnly: 0,
       dirtyOnly: 0,
       both: 0,
@@ -78,6 +80,8 @@ export default async function AnalyticsPage({
     if (feed.type === 'breast') {
       day.breastCount += 1
       day.breastMins += Math.round((feed.durationSeconds || 0) / 60)
+      day.breastMilkMl += feed.volumeMl || 0
+      if (feed.volumeMl) day.breastMilkCount += 1
     } else if (feed.type === 'formula') {
       day.formulaCount += 1
       day.formulaMl += feed.volumeMl || 0

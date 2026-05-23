@@ -24,6 +24,8 @@ interface DailyData {
   breastCount: number
   formulaMl: number
   breastMins: number
+  breastMilkMl: number
+  breastMilkCount: number
   wetOnly: number
   dirtyOnly: number
   both: number
@@ -84,6 +86,8 @@ function sumData(days: DailyData[]) {
       breastCount: totals.breastCount + day.breastCount,
       formulaMl: totals.formulaMl + day.formulaMl,
       breastMins: totals.breastMins + day.breastMins,
+      breastMilkMl: totals.breastMilkMl + day.breastMilkMl,
+      breastMilkCount: totals.breastMilkCount + day.breastMilkCount,
       wetOnly: totals.wetOnly + day.wetOnly,
       dirtyOnly: totals.dirtyOnly + day.dirtyOnly,
       both: totals.both + day.both,
@@ -97,6 +101,8 @@ function sumData(days: DailyData[]) {
       breastCount: 0,
       formulaMl: 0,
       breastMins: 0,
+      breastMilkMl: 0,
+      breastMilkCount: 0,
       wetOnly: 0,
       dirtyOnly: 0,
       both: 0,
@@ -214,7 +220,8 @@ export function AnalyticsPanel({
       totals,
       previous,
       formulaPerFeed: avg(totals.formulaMl, totals.formulaCount),
-      breastPerFeed: avg(totals.breastMins, totals.breastCount),
+      breastPerFeed: avg(totals.breastMins, Math.max(totals.breastCount - totals.breastMilkCount, 0)),
+      breastMilkPerFeed: avg(totals.breastMilkMl, totals.breastMilkCount),
       feedsPerDay: avg(totals.feedCount, chartData.length, 1),
       nappiesPerDay: avg(totals.totalNappies, chartData.length, 1),
       avgGap,
@@ -224,7 +231,7 @@ export function AnalyticsPanel({
 
   const hasFeedData = summary.totals.feedCount > 0
   const hasFormulaData = summary.totals.formulaMl > 0
-  const hasBreastData = summary.totals.breastMins > 0
+  const hasBreastData = summary.totals.breastMins > 0 || summary.totals.breastMilkMl > 0
   const hasNappyData = summary.totals.totalNappies > 0
   const xInterval = range === '30d' ? 4 : 0
 
@@ -365,6 +372,19 @@ export function AnalyticsPanel({
             label={feedView === 'formula' ? 'Avg / Bottle' : 'Avg / Feed'}
             value={feedView === 'formula' ? `${summary.formulaPerFeed} ml` : `${summary.breastPerFeed} min`}
           />
+          {feedView === 'breast' && summary.totals.breastMilkMl > 0 && (
+            <>
+              <SummaryCard
+                label="Expressed Milk"
+                value={`${compactNumber(summary.totals.breastMilkMl)} ml`}
+                tone="text-cyan-400"
+              />
+              <SummaryCard
+                label="Avg / Bottle"
+                value={`${summary.breastMilkPerFeed} ml`}
+              />
+            </>
+          )}
         </div>
       )}
 
@@ -375,7 +395,9 @@ export function AnalyticsPanel({
               ? 'Feed count over time'
               : feedView === 'formula'
                 ? 'Formula volume over time'
-                : 'Breast feed minutes over time'
+                : summary.totals.breastMins > 0
+                  ? 'Breast feed minutes over time'
+                  : 'Expressed breast milk over time'
             : 'Nappy changes breakdown'}
         </h3>
 
@@ -428,8 +450,16 @@ export function AnalyticsPanel({
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
                   <XAxis dataKey="date" interval={xInterval} stroke="currentColor" className="text-muted-foreground" tickLine={false} />
                   <YAxis stroke="currentColor" className="text-muted-foreground" tickLine={false} axisLine={false} />
-                  <Tooltip content={<ChartTooltip unit="mins" />} cursor={{ stroke: 'rgba(14,165,233,0.2)', strokeWidth: 1 }} />
-                  <Area type="monotone" dataKey="breastMins" name="Breast Duration" stroke="#0ea5e9" strokeWidth={2} fillOpacity={1} fill="url(#colorBreast)" />
+                  <Tooltip content={<ChartTooltip unit={summary.totals.breastMins > 0 ? 'mins' : 'ml'} />} cursor={{ stroke: 'rgba(14,165,233,0.2)', strokeWidth: 1 }} />
+                  <Area
+                    type="monotone"
+                    dataKey={summary.totals.breastMins > 0 ? 'breastMins' : 'breastMilkMl'}
+                    name={summary.totals.breastMins > 0 ? 'Breast Duration' : 'Breast Milk'}
+                    stroke={summary.totals.breastMins > 0 ? '#0ea5e9' : '#06b6d4'}
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorBreast)"
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             ) : <EmptyChart label="No breast feeds logged in this range yet." />

@@ -25,7 +25,9 @@ export async function GET(request: Request) {
       type: 'Feed' as const,
       timestamp: new Date(feed.timestamp),
       details: feed.type === 'breast'
-        ? `Breast, ${Math.round((feed.durationSeconds || 0) / 60)} min`
+        ? feed.volumeMl
+          ? `Breast milk, ${feed.volumeMl} ml`
+          : `Breast, ${Math.round((feed.durationSeconds || 0) / 60)} min`
         : `Formula, ${feed.volumeMl} ml`,
     }))
 

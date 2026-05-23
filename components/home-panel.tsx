@@ -33,9 +33,16 @@ function formatSummaryMinutes(minutes: number): string {
 
 const BREAST_PRESETS = [5, 10, 15, 20, 25, 30]
 const FORMULA_PRESETS = [30, 60, 90, 120, 150, 180]
+const EXPRESSED_PRESETS = [30, 60, 90, 120, 150, 180]
 
-type QuickLogMode = 'home' | 'breast' | 'formula'
-type ConfirmationType = 'breast' | 'formula' | 'wet' | 'dirty' | 'both' | null
+type QuickLogMode = 'home' | 'breast' | 'expressed' | 'formula'
+type ConfirmationType = 'breast' | 'expressed' | 'formula' | 'wet' | 'dirty' | 'both' | null
+
+function formatFeedDetail(feed: FeedEntry) {
+  if (feed.type === 'formula') return `Formula ${feed.volumeMl || 0}ml`
+  if (feed.volumeMl) return `Breast milk ${feed.volumeMl}ml`
+  return `Breast ${feed.durationSeconds ? formatDurationMins(feed.durationSeconds) : ''}`
+}
 
 export function HomePanel({
   lastFeed,
@@ -50,6 +57,7 @@ export function HomePanel({
   const [confirmation, setConfirmation] = useState<ConfirmationType>(null)
   const [confirmationDetail, setConfirmationDetail] = useState('')
   const [customBreastMinutes, setCustomBreastMinutes] = useState('')
+  const [customExpressedMl, setCustomExpressedMl] = useState('')
   const [customFormulaMl, setCustomFormulaMl] = useState('')
   const [feedTimestamp, setFeedTimestamp] = useState(() => formatAppDateTimeLocal(new Date()))
   const [nappyOpen, setNappyOpen] = useState(false)
@@ -75,8 +83,10 @@ export function HomePanel({
 
   const isLogging = isPending || pendingKey !== null
   const customBreastValue = Number(customBreastMinutes)
+  const customExpressedValue = Number(customExpressedMl)
   const customFormulaValue = Number(customFormulaMl)
   const canLogCustomBreast = Number.isFinite(customBreastValue) && customBreastValue > 0
+  const canLogCustomExpressed = Number.isFinite(customExpressedValue) && customExpressedValue > 0
   const canLogCustomFormula = Number.isFinite(customFormulaValue) && customFormulaValue > 0
   const canLogNappy = Boolean(nappyType && nappyTimestamp)
 
@@ -85,6 +95,7 @@ export function HomePanel({
 
     const configs = {
       breast: { label: 'Breast feed logged', color: 'bg-sky-500' },
+      expressed: { label: 'Breast milk logged', color: 'bg-cyan-500' },
       formula: { label: 'Formula logged', color: 'bg-amber-500' },
       wet: { label: 'Wet nappy logged', color: 'bg-blue-500' },
       dirty: { label: 'Dirty nappy logged', color: 'bg-orange-500' },
@@ -127,17 +138,20 @@ export function HomePanel({
     setNappyOpen(true)
   }
 
-  function logFeed(type: 'breast' | 'formula', amount: number) {
+  function logFeed(type: 'breast' | 'formula', amount: number, measure: 'duration' | 'volume') {
     if (!feedTimestamp) return
     const rounded = Math.round(amount)
     const formData = new FormData()
     formData.set('type', type)
+    formData.set('measure', measure)
     formData.set('amount', String(rounded))
     formData.set('timestamp', feedTimestamp)
-    runLog(`${type}-${rounded}`, formData, addFeedAction, () => {
-      setConfirmation(type)
-      setConfirmationDetail(type === 'breast' ? `${rounded}m` : `${rounded}ml`)
+    runLog(`${type}-${measure}-${rounded}`, formData, addFeedAction, () => {
+      const confirmationType = type === 'breast' && measure === 'volume' ? 'expressed' : type
+      setConfirmation(confirmationType)
+      setConfirmationDetail(measure === 'duration' ? `${rounded}m` : `${rounded}ml`)
       setCustomBreastMinutes('')
+      setCustomExpressedMl('')
       setCustomFormulaMl('')
       setFeedTimestamp(formatAppDateTimeLocal(new Date()))
       setMode('home')
@@ -170,12 +184,12 @@ export function HomePanel({
           </div>
           <div className="grid grid-cols-3 gap-3">
             {BREAST_PRESETS.map(mins => (
-              <button key={mins} onClick={() => logFeed('breast', mins)} disabled={!feedTimestamp || isLogging} className="py-7 rounded-2xl bg-sky-500/15 border-2 border-sky-500/30 text-sky-400 text-2xl font-bold transition-all duration-150 hover:bg-sky-500/25 hover:border-sky-500/50 hover:scale-[1.02] active:bg-sky-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+              <button key={mins} onClick={() => logFeed('breast', mins, 'duration')} disabled={!feedTimestamp || isLogging} className="py-7 rounded-2xl bg-sky-500/15 border-2 border-sky-500/30 text-sky-400 text-2xl font-bold transition-all duration-150 hover:bg-sky-500/25 hover:border-sky-500/50 hover:scale-[1.02] active:bg-sky-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
                 {mins}m
               </button>
             ))}
           </div>
-          <form onSubmit={(event) => { event.preventDefault(); if (canLogCustomBreast) logFeed('breast', customBreastValue) }} className="flex flex-col gap-3 rounded-2xl bg-muted/30 border border-muted/50 p-4">
+          <form onSubmit={(event) => { event.preventDefault(); if (canLogCustomBreast) logFeed('breast', customBreastValue, 'duration') }} className="flex flex-col gap-3 rounded-2xl bg-muted/30 border border-muted/50 p-4">
             <label htmlFor="custom-breast-minutes" className="text-sm text-muted-foreground">Custom time</label>
             <div className="flex gap-3">
               <div className="relative flex-1">
@@ -183,6 +197,41 @@ export function HomePanel({
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">min</span>
               </div>
               <button type="submit" disabled={!canLogCustomBreast || !feedTimestamp || isLogging} className="h-14 px-5 rounded-xl bg-sky-500 text-white font-semibold hover:bg-sky-400 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                Log
+              </button>
+            </div>
+          </form>
+          <button onClick={() => setMode('home')} className="text-muted-foreground py-4 text-base font-medium hover:text-foreground transition-colors">Cancel</button>
+        </div>
+      )
+    }
+
+    if (mode === 'expressed') {
+      return (
+        <div className="flex flex-col gap-6 px-1">
+          <div className="text-center">
+            <p className="text-xl font-semibold text-foreground">Breast milk</p>
+            <p className="text-muted-foreground text-sm mt-1">Select amount</p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="expressed-feed-time" className="text-sm text-muted-foreground">Date & time</label>
+            <input id="expressed-feed-time" type="datetime-local" value={feedTimestamp} onChange={(event) => setFeedTimestamp(event.target.value)} disabled={isLogging} className="h-12 rounded-xl bg-background border border-border px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {EXPRESSED_PRESETS.map(ml => (
+              <button key={ml} onClick={() => logFeed('breast', ml, 'volume')} disabled={!feedTimestamp || isLogging} className="py-7 rounded-2xl bg-cyan-500/15 border-2 border-cyan-500/30 text-cyan-400 text-2xl font-bold transition-all duration-150 hover:bg-cyan-500/25 hover:border-cyan-500/50 hover:scale-[1.02] active:bg-cyan-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+                {ml}
+              </button>
+            ))}
+          </div>
+          <form onSubmit={(event) => { event.preventDefault(); if (canLogCustomExpressed) logFeed('breast', customExpressedValue, 'volume') }} className="flex flex-col gap-3 rounded-2xl bg-muted/30 border border-muted/50 p-4">
+            <label htmlFor="custom-expressed-ml" className="text-sm text-muted-foreground">Custom amount</label>
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <input id="custom-expressed-ml" type="number" inputMode="numeric" min="1" step="1" value={customExpressedMl} onChange={(event) => setCustomExpressedMl(event.target.value)} disabled={isLogging} className="h-14 w-full rounded-xl bg-background border border-border px-4 pr-12 text-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 disabled:opacity-45 disabled:cursor-not-allowed" placeholder="75" />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">ml</span>
+              </div>
+              <button type="submit" disabled={!canLogCustomExpressed || !feedTimestamp || isLogging} className="h-14 px-5 rounded-xl bg-cyan-500 text-white font-semibold hover:bg-cyan-400 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                 Log
               </button>
             </div>
@@ -205,12 +254,12 @@ export function HomePanel({
           </div>
           <div className="grid grid-cols-3 gap-3">
             {FORMULA_PRESETS.map(ml => (
-              <button key={ml} onClick={() => logFeed('formula', ml)} disabled={!feedTimestamp || isLogging} className="py-7 rounded-2xl bg-amber-500/15 border-2 border-amber-500/30 text-amber-400 text-2xl font-bold transition-all duration-150 hover:bg-amber-500/25 hover:border-amber-500/50 hover:scale-[1.02] active:bg-amber-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+              <button key={ml} onClick={() => logFeed('formula', ml, 'volume')} disabled={!feedTimestamp || isLogging} className="py-7 rounded-2xl bg-amber-500/15 border-2 border-amber-500/30 text-amber-400 text-2xl font-bold transition-all duration-150 hover:bg-amber-500/25 hover:border-amber-500/50 hover:scale-[1.02] active:bg-amber-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
                 {ml}
               </button>
             ))}
           </div>
-          <form onSubmit={(event) => { event.preventDefault(); if (canLogCustomFormula) logFeed('formula', customFormulaValue) }} className="flex flex-col gap-3 rounded-2xl bg-muted/30 border border-muted/50 p-4">
+          <form onSubmit={(event) => { event.preventDefault(); if (canLogCustomFormula) logFeed('formula', customFormulaValue, 'volume') }} className="flex flex-col gap-3 rounded-2xl bg-muted/30 border border-muted/50 p-4">
             <label htmlFor="custom-formula-ml" className="text-sm text-muted-foreground">Custom amount</label>
             <div className="flex gap-3">
               <div className="relative flex-1">
@@ -233,7 +282,7 @@ export function HomePanel({
           <div className="rounded-2xl bg-muted/50 p-4 text-center border border-muted">
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Since feed</p>
             <p className="text-3xl font-bold text-foreground tabular-nums">{formatTimeSince(lastFeed?.timestamp ?? null, now)}</p>
-            {lastFeed && <p className="text-sm text-muted-foreground mt-1 capitalize">{lastFeed.type === 'breast' ? `Breast ${lastFeed.durationSeconds ? formatDurationMins(lastFeed.durationSeconds) : ''}` : `Formula ${lastFeed.volumeMl}ml`}</p>}
+            {lastFeed && <p className="text-sm text-muted-foreground mt-1">{formatFeedDetail(lastFeed)}</p>}
           </div>
           <div className="rounded-2xl bg-muted/50 p-4 text-center border border-muted">
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Since nappy</p>
@@ -248,6 +297,7 @@ export function HomePanel({
               <p className="text-2xl font-bold text-foreground">{summary.breastFeedCount}</p>
               <p className="text-xs text-muted-foreground">Breast</p>
               <p className="text-sm font-semibold text-sky-400 mt-2 tabular-nums">{formatSummaryMinutes(summary.totalBreastMinutes)}</p>
+              {summary.totalBreastMilkMl > 0 && <p className="text-sm font-semibold text-cyan-400 tabular-nums">{summary.totalBreastMilkMl}ml</p>}
             </div>
             <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-2 py-3 min-w-0">
               <p className="text-2xl font-bold text-foreground">{summary.formulaFeedCount}</p>
@@ -264,9 +314,12 @@ export function HomePanel({
         <div className="flex flex-col gap-4">
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Log feed</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <button onClick={() => showFeedMode('breast')} disabled={isLogging} className="flex items-center justify-center gap-2 py-6 rounded-2xl bg-sky-500/15 border-2 border-sky-500/30 text-sky-400 transition-all duration-150 hover:bg-sky-500/25 hover:border-sky-500/50 hover:scale-[1.01] active:bg-sky-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
                 <span className="text-xl font-bold">Breast</span>
+              </button>
+              <button onClick={() => showFeedMode('expressed')} disabled={isLogging} className="flex items-center justify-center gap-2 py-6 rounded-2xl bg-cyan-500/15 border-2 border-cyan-500/30 text-cyan-400 transition-all duration-150 hover:bg-cyan-500/25 hover:border-cyan-500/50 hover:scale-[1.01] active:bg-cyan-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+                <span className="text-xl font-bold">Milk</span>
               </button>
               <button onClick={() => showFeedMode('formula')} disabled={isLogging} className="flex items-center justify-center gap-2 py-6 rounded-2xl bg-amber-500/15 border-2 border-amber-500/30 text-amber-400 transition-all duration-150 hover:bg-amber-500/25 hover:border-amber-500/50 hover:scale-[1.01] active:bg-amber-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
                 <span className="text-xl font-bold">Formula</span>
@@ -282,7 +335,7 @@ export function HomePanel({
         </div>
       </div>
     )
-  }, [canLogCustomBreast, canLogCustomFormula, customBreastMinutes, customBreastValue, customFormulaMl, customFormulaValue, feedTimestamp, isLogging, lastFeed, lastNappy, mode, now, summary])
+  }, [canLogCustomBreast, canLogCustomExpressed, canLogCustomFormula, customBreastMinutes, customBreastValue, customExpressedMl, customExpressedValue, customFormulaMl, customFormulaValue, feedTimestamp, isLogging, lastFeed, lastNappy, mode, now, summary])
 
   return (
     <>

@@ -45,6 +45,25 @@ function formatDuration(seconds: number): string {
   return `${Math.floor(seconds / 60)}m`
 }
 
+type FeedKind = 'breast' | 'expressed' | 'formula'
+
+function feedKind(feed: FeedEntry): FeedKind {
+  if (feed.type === 'formula') return 'formula'
+  return feed.volumeMl ? 'expressed' : 'breast'
+}
+
+function feedLabel(kind: FeedKind) {
+  if (kind === 'expressed') return 'Breast milk'
+  if (kind === 'breast') return 'Breast feed'
+  return 'Formula'
+}
+
+function feedTone(kind: FeedKind) {
+  if (kind === 'expressed') return 'text-cyan-400'
+  if (kind === 'breast') return 'text-sky-400'
+  return 'text-amber-400'
+}
+
 function filterHref(type: FilterType, range: TimeRange) {
   return `/history?type=${type}&range=${range}`
 }
@@ -73,13 +92,16 @@ function ActionIcon({
 
 function FeedItem({ feed }: { feed: FeedEntry }) {
   const [editing, setEditing] = useState(false)
-  const [type, setType] = useState(feed.type)
-  const [amount, setAmount] = useState(feed.type === 'breast' ? String(Math.round((feed.durationSeconds || 0) / 60)) : String(feed.volumeMl || ''))
+  const [kind, setKind] = useState<FeedKind>(feedKind(feed))
+  const [amount, setAmount] = useState(feed.volumeMl ? String(feed.volumeMl) : String(Math.round((feed.durationSeconds || 0) / 60)))
   const [timestamp, setTimestamp] = useState(formatAppDateTimeLocal(feed.timestamp))
   const [isPending, startTransition] = useTransition()
-  const isBreast = feed.type === 'breast'
+  const kindForFeed = feedKind(feed)
+  const isBreast = kindForFeed === 'breast'
   const amountValue = Number(amount)
   const canSave = Number.isFinite(amountValue) && amountValue > 0 && timestamp
+  const editType = kind === 'formula' ? 'formula' : 'breast'
+  const editMeasure = kind === 'breast' ? 'duration' : 'volume'
 
   if (editing) {
     return (
@@ -94,13 +116,14 @@ function FeedItem({ feed }: { feed: FeedEntry }) {
         className="py-3 flex flex-col gap-3"
       >
         <input type="hidden" name="id" value={feed.id} />
-        <input type="hidden" name="type" value={type} />
+        <input type="hidden" name="type" value={editType} />
+        <input type="hidden" name="measure" value={editMeasure} />
         <input type="hidden" name="amount" value={amount} />
         <input type="hidden" name="timestamp" value={timestamp} />
-        <div className="grid grid-cols-2 gap-2">
-          {(['breast', 'formula'] as const).map(option => (
-            <button key={option} type="button" onClick={() => setType(option)} disabled={isPending} className={`h-10 rounded-lg text-sm font-medium capitalize transition-colors ${type === option ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'} disabled:opacity-50 disabled:cursor-not-allowed`}>
-              {option}
+        <div className="grid grid-cols-3 gap-2">
+          {(['breast', 'expressed', 'formula'] as FeedKind[]).map(option => (
+            <button key={option} type="button" onClick={() => setKind(option)} disabled={isPending} className={`h-10 rounded-lg text-sm font-medium capitalize transition-colors ${kind === option ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'} disabled:opacity-50 disabled:cursor-not-allowed`}>
+              {option === 'expressed' ? 'Milk' : option}
             </button>
           ))}
         </div>
@@ -108,7 +131,7 @@ function FeedItem({ feed }: { feed: FeedEntry }) {
           <input type="datetime-local" value={timestamp} onChange={(event) => setTimestamp(event.target.value)} disabled={isPending} className="min-w-0 h-11 rounded-lg bg-background border border-border px-3 text-sm text-foreground disabled:opacity-50 disabled:cursor-not-allowed" />
           <div className="relative">
             <input type="number" inputMode="numeric" min="1" step="1" value={amount} onChange={(event) => setAmount(event.target.value)} disabled={isPending} className="h-11 w-full rounded-lg bg-background border border-border px-3 pr-10 text-sm text-foreground disabled:opacity-50 disabled:cursor-not-allowed" />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{type === 'breast' ? 'm' : 'ml'}</span>
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{kind === 'breast' ? 'm' : 'ml'}</span>
           </div>
         </div>
         <div className="flex justify-end gap-2">
@@ -125,15 +148,15 @@ function FeedItem({ feed }: { feed: FeedEntry }) {
 
   return (
     <div className="flex items-center gap-3 py-3">
-      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isBreast ? 'bg-sky-500/20' : 'bg-amber-500/20'}`}>
-        <span className={`text-sm font-bold ${isBreast ? 'text-sky-400' : 'text-amber-400'}`}>{isBreast ? 'B' : 'F'}</span>
+      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${kindForFeed === 'breast' ? 'bg-sky-500/20' : kindForFeed === 'expressed' ? 'bg-cyan-500/20' : 'bg-amber-500/20'}`}>
+        <span className={`text-sm font-bold ${feedTone(kindForFeed)}`}>{kindForFeed === 'formula' ? 'F' : kindForFeed === 'expressed' ? 'M' : 'B'}</span>
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground">{isBreast ? 'Breast feed' : 'Formula'}</p>
+        <p className="text-sm font-medium text-foreground">{feedLabel(kindForFeed)}</p>
         <p className="text-xs text-muted-foreground">{formatTime(feed.timestamp)}</p>
       </div>
       <div className="text-right">
-        <p className={`text-sm font-semibold ${isBreast ? 'text-sky-400' : 'text-amber-400'}`}>{isBreast ? formatDuration(feed.durationSeconds || 0) : `${feed.volumeMl}ml`}</p>
+        <p className={`text-sm font-semibold ${feedTone(kindForFeed)}`}>{kindForFeed === 'breast' ? formatDuration(feed.durationSeconds || 0) : `${feed.volumeMl || 0}ml`}</p>
       </div>
       <div className="flex gap-1 shrink-0">
         <button type="button" onClick={() => setEditing(true)} className="h-9 w-9 rounded-lg grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" aria-label="Edit feed" title="Edit feed">
@@ -149,7 +172,7 @@ function FeedItem({ feed }: { feed: FeedEntry }) {
             <AlertDialogHeader>
               <AlertDialogTitle>Delete this feed?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently remove the {isBreast ? 'breast feed' : 'formula feed'} logged at {formatTime(feed.timestamp)}.
+                This will permanently remove the {feedLabel(kindForFeed).toLowerCase()} logged at {formatTime(feed.timestamp)}.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

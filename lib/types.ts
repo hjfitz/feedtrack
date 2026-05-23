@@ -8,10 +8,10 @@ export interface FeedEntry {
   id: string
   type: FeedType
   timestamp: Date
-  // Breast feed specific
+  // Nursing-specific
   side?: BreastSide
   durationSeconds?: number
-  // Formula specific
+  // Bottle volume. For breast feeds this means expressed milk.
   volumeMl?: number
 }
 
@@ -29,6 +29,7 @@ export interface DailySummary {
   formulaFeedCount: number
   totalFormulaMl: number
   totalBreastMinutes: number
+  totalBreastMilkMl: number
   nappyCount: number
   wetCount: number
   dirtyCount: number

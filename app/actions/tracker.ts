@@ -34,16 +34,26 @@ function revalidateTrackerPages() {
   revalidatePath('/history')
 }
 
+function getFeedPayload(type: FeedType, formData: FormData) {
+  const amount = getNumber(formData, 'amount')
+  const measure = getString(formData, 'measure')
+  const rounded = amount ? Math.round(amount) : undefined
+
+  return {
+    durationSeconds: type === 'breast' && measure !== 'volume' && rounded ? rounded * 60 : undefined,
+    volumeMl: (type === 'formula' || measure === 'volume') && rounded ? rounded : undefined,
+  }
+}
+
 export async function addFeedAction(formData: FormData) {
   const householdId = await requireSessionHouseholdId()
   const type = getString(formData, 'type') as FeedType
-  const amount = getNumber(formData, 'amount')
+  const feedPayload = getFeedPayload(type, formData)
 
   await addFeed(householdId, {
     type,
     timestamp: getTimestamp(formData),
-    durationSeconds: type === 'breast' && amount ? Math.round(amount) * 60 : undefined,
-    volumeMl: type === 'formula' && amount ? Math.round(amount) : undefined,
+    ...feedPayload,
   })
   revalidateTrackerPages()
 }
@@ -60,13 +70,12 @@ export async function addNappyAction(formData: FormData) {
 export async function updateFeedAction(formData: FormData) {
   const householdId = await requireSessionHouseholdId()
   const type = getString(formData, 'type') as FeedType
-  const amount = getNumber(formData, 'amount')
+  const feedPayload = getFeedPayload(type, formData)
 
   await updateFeed(householdId, getString(formData, 'id'), {
     type,
     timestamp: getTimestamp(formData),
-    durationSeconds: type === 'breast' && amount ? Math.round(amount) * 60 : undefined,
-    volumeMl: type === 'formula' && amount ? Math.round(amount) : undefined,
+    ...feedPayload,
   })
   revalidateTrackerPages()
 }

@@ -128,7 +128,7 @@ export async function addFeed(
     type: input.type,
     timestamp,
     side: input.side,
-    durationSeconds: typeof input.durationSeconds === 'number' ? input.durationSeconds : undefined,
+    durationSeconds: input.type === 'breast' && typeof input.volumeMl !== 'number' && typeof input.durationSeconds === 'number' ? input.durationSeconds : undefined,
     volumeMl: typeof input.volumeMl === 'number' ? input.volumeMl : undefined,
   }
 
@@ -157,7 +157,12 @@ export async function updateFeed(householdId: string, id: string, input: Partial
 
   const nextFeed: FeedEntry = { ...feeds[index], ...updates }
   if (nextFeed.type === 'breast') {
-    delete nextFeed.volumeMl
+    if (typeof updates.volumeMl === 'number') {
+      delete nextFeed.durationSeconds
+      delete nextFeed.side
+    } else if (typeof updates.durationSeconds === 'number') {
+      delete nextFeed.volumeMl
+    }
   } else {
     delete nextFeed.durationSeconds
     delete nextFeed.side
