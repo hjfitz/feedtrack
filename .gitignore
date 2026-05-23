@@ -12,6 +12,8 @@ __v0_jsx-dev-runtime.ts
 # Common ignores
 node_modules
 .next/
+.test-build/
+tsconfig.tsbuildinfo
 .DS_Store
 
 .antigravitycli/

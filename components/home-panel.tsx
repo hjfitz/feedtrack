@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { estimateNextFeed, formatNextFeedEstimate } from '@/lib/feed-estimate'
 import { formatAppDateTimeLocal } from '@/lib/timezone'
 import type { DailySummary, FeedEntry, NappyEntry } from '@/lib/types'
 
@@ -46,12 +47,16 @@ function formatFeedDetail(feed: FeedEntry) {
 
 export function HomePanel({
   lastFeed,
+  recentFeeds,
   lastNappy,
   summary,
+  babyDob,
 }: {
   lastFeed: FeedEntry | null
+  recentFeeds: FeedEntry[]
   lastNappy: NappyEntry | null
   summary: DailySummary
+  babyDob?: string
 }) {
   const [mode, setMode] = useState<QuickLogMode>('home')
   const [confirmation, setConfirmation] = useState<ConfirmationType>(null)
@@ -89,6 +94,7 @@ export function HomePanel({
   const canLogCustomExpressed = Number.isFinite(customExpressedValue) && customExpressedValue > 0
   const canLogCustomFormula = Number.isFinite(customFormulaValue) && customFormulaValue > 0
   const canLogNappy = Boolean(nappyType && nappyTimestamp)
+  const nextFeedEstimate = estimateNextFeed(recentFeeds, babyDob, now)
 
   const ConfirmationToast = () => {
     if (!confirmation) return null
@@ -283,6 +289,7 @@ export function HomePanel({
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Since feed</p>
             <p className="whitespace-nowrap text-2xl font-bold text-foreground tabular-nums sm:text-3xl">{formatTimeSince(lastFeed?.timestamp ?? null, now)}</p>
             {lastFeed && <p className="text-sm text-muted-foreground mt-1">{formatFeedDetail(lastFeed)}</p>}
+            {nextFeedEstimate && <p className="text-xs text-muted-foreground/80 mt-2">{formatNextFeedEstimate(nextFeedEstimate)}</p>}
           </div>
           <div className="rounded-2xl bg-muted/50 p-4 text-center border border-muted">
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Since nappy</p>
@@ -354,7 +361,7 @@ export function HomePanel({
         </div>
       </div>
     )
-  }, [canLogCustomBreast, canLogCustomExpressed, canLogCustomFormula, customBreastMinutes, customBreastValue, customExpressedMl, customExpressedValue, customFormulaMl, customFormulaValue, feedTimestamp, isLogging, lastFeed, lastNappy, mode, now, summary])
+  }, [babyDob, canLogCustomBreast, canLogCustomExpressed, canLogCustomFormula, customBreastMinutes, customBreastValue, customExpressedMl, customExpressedValue, customFormulaMl, customFormulaValue, feedTimestamp, isLogging, lastFeed, lastNappy, mode, nextFeedEstimate, now, recentFeeds, summary])
 
   return (
     <>

@@ -8,14 +8,13 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'Baby Tracker',
-  description: 'Track feeds, nappies, and analytics for your newborn',
-  applicationName: 'Baby Tracker',
-  generator: 'v0.app',
+  title: 'FeedTrack',
+  description: 'A private baby tracker for feeds, nappies, pumping, and daily patterns.',
+  applicationName: 'FeedTrack',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
-    title: 'Baby Tracker',
+    title: 'FeedTrack',
     statusBarStyle: 'black-translucent',
   },
   formatDetection: {
@@ -24,16 +23,19 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
+        url: '/favicon/favicon-32.png',
+        sizes: '32x32',
+        type: 'image/png',
       },
       {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
+        url: '/favicon/favicon-16.png',
+        sizes: '16x16',
+        type: 'image/png',
       },
       {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
+        url: '/icons/icon-192.png',
+        sizes: '192x192',
+        type: 'image/png',
       },
     ],
     apple: '/apple-icon.png',

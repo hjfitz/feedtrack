@@ -13,7 +13,7 @@ export default async function HomePage() {
 
   return (
     <AppShell babyName={meta?.babyName} babyDob={meta?.babyDob}>
-      <HomePanel {...data} />
+      <HomePanel {...data} babyDob={meta?.babyDob} />
     </AppShell>
   )
 }

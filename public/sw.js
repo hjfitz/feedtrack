@@ -1,9 +1,11 @@
 const CACHE_NAME = 'feedtrack-static-v1'
 const STATIC_PATHS = [
-  '/icon.svg',
   '/apple-icon.png',
-  '/icon-dark-32x32.png',
-  '/icon-light-32x32.png',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/icon-maskable-512.png',
+  '/favicon/favicon-16.png',
+  '/favicon/favicon-32.png',
 ]
 
 self.addEventListener('install', event => {

@@ -104,6 +104,7 @@ export async function getOverviewData(householdId: string) {
 
   return {
     lastFeed: feeds[0] || null,
+    recentFeeds: feeds.slice(0, 20),
     lastNappy: nappies[0] || null,
     summary,
   }
