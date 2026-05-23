@@ -3,10 +3,11 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { clearSessionCookie, requireSessionHouseholdId, setSessionCookie } from '@/lib/server/auth'
-import { AppError, generateInviteCode, loginUser, signupUser } from '@/lib/server/tracker'
+import { AppError, changePassword, generateInviteCode, loginUser, signupUser } from '@/lib/server/tracker'
 
 export interface AuthFormState {
   error: string
+  success?: string
 }
 
 function getString(formData: FormData, key: string) {
@@ -56,4 +57,23 @@ export async function generateInviteAction() {
   const householdId = await requireSessionHouseholdId()
   await generateInviteCode(householdId)
   revalidatePath('/settings')
+}
+
+export async function changePasswordAction(_state: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  const currentPassword = getString(formData, 'currentPassword')
+  const newPassword = getString(formData, 'newPassword')
+  const confirmPassword = getString(formData, 'confirmPassword')
+
+  try {
+    if (newPassword !== confirmPassword) {
+      throw new AppError('New passwords do not match')
+    }
+
+    const householdId = await requireSessionHouseholdId()
+    await changePassword(householdId, getString(formData, 'username'), currentPassword, newPassword)
+  } catch (error) {
+    return formError(error)
+  }
+
+  return { error: '', success: 'Password changed' }
 }

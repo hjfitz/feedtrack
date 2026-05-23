@@ -278,6 +278,34 @@ export async function loginUser(usernameInput: string, password: string) {
   return { householdId: user.id, inviteCode: user.inviteCode }
 }
 
+export async function changePassword(
+  householdId: string,
+  usernameInput: string,
+  currentPassword: string,
+  newPassword: string
+) {
+  const username = normalizeUsername(usernameInput)
+  if (!username || !currentPassword || !newPassword) {
+    throw new AppError('All password fields are required')
+  }
+  if (newPassword.length < 6) {
+    throw new AppError('New password must be at least 6 characters')
+  }
+
+  const user = await getUser(username)
+  if (!user || user.id !== householdId) {
+    throw new AppError('Account not found in this household', 404)
+  }
+
+  const matches = await bcrypt.compare(currentPassword, user.hash)
+  if (!matches) {
+    throw new AppError('Current password is incorrect', 401)
+  }
+
+  const hash = await bcrypt.hash(newPassword, 12)
+  await setUser(username, { ...user, hash })
+}
+
 export async function generateInviteCode(householdId: string) {
   const meta = await getHouseholdMeta(householdId)
   const inviteCode = await createUniqueInviteCode()

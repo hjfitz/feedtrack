@@ -4,6 +4,17 @@ import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { Check, Download, Pencil, Trash2, X } from 'lucide-react'
 import { deleteFeedAction, deleteNappyAction, updateFeedAction, updateNappyAction } from '@/app/actions/tracker'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { appDateKey, formatAppDate, formatAppDateTimeLocal, formatAppTime } from '@/lib/timezone'
 import type { FeedEntry, NappyEntry } from '@/lib/types'
 
@@ -128,12 +139,30 @@ function FeedItem({ feed }: { feed: FeedEntry }) {
         <button type="button" onClick={() => setEditing(true)} className="h-9 w-9 rounded-lg grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" aria-label="Edit feed" title="Edit feed">
           <Pencil className="h-4 w-4" aria-hidden="true" />
         </button>
-        <form action={deleteFeedAction}>
-          <input type="hidden" name="id" value={feed.id} />
-          <ActionIcon label="Delete feed" pending={isPending}>
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-          </ActionIcon>
-        </form>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button type="button" disabled={isPending} className="h-9 w-9 rounded-lg grid place-items-center text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Delete feed" title="Delete feed">
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this feed?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently remove the {isBreast ? 'breast feed' : 'formula feed'} logged at {formatTime(feed.timestamp)}.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <form action={deleteFeedAction}>
+                <input type="hidden" name="id" value={feed.id} />
+                <AlertDialogAction type="submit" className="bg-red-500 text-white hover:bg-red-400">
+                  Delete
+                </AlertDialogAction>
+              </form>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   )

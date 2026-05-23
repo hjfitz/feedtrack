@@ -1,8 +1,52 @@
 'use client'
 
-import { useState } from 'react'
-import { Copy, LogOut, RefreshCw } from 'lucide-react'
-import { generateInviteAction, logoutAction } from '@/app/actions/auth'
+import { useActionState, useEffect, useRef, useState } from 'react'
+import { Copy, LockKeyhole, LogOut, RefreshCw } from 'lucide-react'
+import { changePasswordAction, generateInviteAction, logoutAction } from '@/app/actions/auth'
+
+function ChangePasswordForm() {
+  const formRef = useRef<HTMLFormElement>(null)
+  const [state, action] = useActionState(changePasswordAction, { error: '' })
+
+  useEffect(() => {
+    if (state.success) {
+      formRef.current?.reset()
+    }
+  }, [state.success])
+
+  return (
+    <form ref={formRef} action={action} className="mt-4 flex flex-col gap-3">
+      {state.error && <div className="rounded-xl bg-red-500/15 border border-red-500/30 px-4 py-3 text-red-400 text-sm">{state.error}</div>}
+      {state.success && <div className="rounded-xl bg-sky-500/15 border border-sky-500/30 px-4 py-3 text-sky-400 text-sm">{state.success}</div>}
+
+      <div className="flex flex-col gap-2">
+        <label htmlFor="change-password-username" className="text-sm text-muted-foreground">Username</label>
+        <input id="change-password-username" name="username" type="text" autoComplete="username" autoCapitalize="off" className="h-12 rounded-xl bg-background border border-border px-4 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50" required />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label htmlFor="current-password" className="text-sm text-muted-foreground">Current password</label>
+        <input id="current-password" name="currentPassword" type="password" autoComplete="current-password" className="h-12 rounded-xl bg-background border border-border px-4 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50" required />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="flex flex-col gap-2">
+          <label htmlFor="new-password" className="text-sm text-muted-foreground">New password</label>
+          <input id="new-password" name="newPassword" type="password" autoComplete="new-password" className="h-12 rounded-xl bg-background border border-border px-4 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50" required minLength={6} />
+        </div>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="confirm-password" className="text-sm text-muted-foreground">Confirm new password</label>
+          <input id="confirm-password" name="confirmPassword" type="password" autoComplete="new-password" className="h-12 rounded-xl bg-background border border-border px-4 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50" required minLength={6} />
+        </div>
+      </div>
+
+      <button type="submit" className="h-12 w-full rounded-xl bg-sky-500 text-white font-medium flex items-center justify-center gap-2 hover:bg-sky-400 active:scale-[0.98] transition-all">
+        <LockKeyhole className="h-4 w-4" aria-hidden="true" />
+        Change password
+      </button>
+    </form>
+  )
+}
 
 export function SettingsPanel({ inviteCode }: { inviteCode: string | null }) {
   const [copied, setCopied] = useState(false)
@@ -46,6 +90,8 @@ export function SettingsPanel({ inviteCode }: { inviteCode: string | null }) {
       <section className="rounded-xl bg-muted/40 border border-muted p-4">
         <h2 className="text-lg font-semibold text-foreground">Account</h2>
         <p className="text-sm text-muted-foreground mt-1">Signed in</p>
+
+        <ChangePasswordForm />
 
         <form action={logoutAction}>
           <button type="submit" className="mt-4 h-12 w-full rounded-xl border border-border text-muted-foreground font-medium flex items-center justify-center gap-2 hover:text-red-400 hover:border-red-500/40 active:scale-[0.98] transition-all">
