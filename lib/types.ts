@@ -25,6 +25,7 @@ export interface NappyEntry {
 export interface DailySummary {
   date: Date
   feedCount: number
+  feedSessionCount: number
   breastFeedCount: number
   formulaFeedCount: number
   totalFormulaMl: number

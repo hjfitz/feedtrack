@@ -20,6 +20,7 @@ interface DailyData {
   date: string
   rawDate: string
   feedCount: number
+  feedSessionCount: number
   formulaCount: number
   breastCount: number
   formulaMl: number
@@ -82,6 +83,7 @@ function sumData(days: DailyData[]) {
   return days.reduce(
     (totals, day) => ({
       feedCount: totals.feedCount + day.feedCount,
+      feedSessionCount: totals.feedSessionCount + day.feedSessionCount,
       formulaCount: totals.formulaCount + day.formulaCount,
       breastCount: totals.breastCount + day.breastCount,
       formulaMl: totals.formulaMl + day.formulaMl,
@@ -97,6 +99,7 @@ function sumData(days: DailyData[]) {
     }),
     {
       feedCount: 0,
+      feedSessionCount: 0,
       formulaCount: 0,
       breastCount: 0,
       formulaMl: 0,
@@ -111,6 +114,13 @@ function sumData(days: DailyData[]) {
       totalNappies: 0,
     },
   )
+}
+
+function hasDataForView(day: DailyData, category: CategoryOption, feedView: FeedViewOption) {
+  if (category === 'nappies') return day.totalNappies > 0
+  if (feedView === 'formula') return day.formulaMl > 0 || day.formulaCount > 0
+  if (feedView === 'breast') return day.breastMins > 0 || day.breastMilkMl > 0 || day.breastCount > 0
+  return day.feedSessionCount > 0
 }
 
 function ChartTooltip({ active, payload, label, unit = '' }: TooltipContentProps) {
@@ -159,14 +169,14 @@ function EmptyChart({ label }: { label: string }) {
 export function AnalyticsPanel({
   data,
   hourlyData,
-  feedTimestamps,
+  feedSessionTimestamps,
   initialRange,
   initialCategory,
   initialFeedView,
 }: {
   data: DailyData[]
   hourlyData: DailyData[]
-  feedTimestamps: string[]
+  feedSessionTimestamps: string[]
   initialRange: RangeOption
   initialCategory: CategoryOption
   initialFeedView: FeedViewOption
@@ -198,13 +208,23 @@ export function AnalyticsPanel({
   }
 
   const rangeDays = range === '7d' ? 7 : 30
-  const chartData = useMemo(() => range === '1d' ? hourlyData : data.slice(-rangeDays), [data, hourlyData, range, rangeDays])
-  const previousData = useMemo(() => range === '1d' ? data.slice(-2, -1) : data.slice(-(rangeDays * 2), -rangeDays), [data, range, rangeDays])
+  const activeDailyData = useMemo(
+    () => data.filter(day => hasDataForView(day, category, feedView)),
+    [category, data, feedView],
+  )
+  const chartData = useMemo(
+    () => range === '1d' ? hourlyData : activeDailyData.slice(-rangeDays),
+    [activeDailyData, hourlyData, range, rangeDays],
+  )
+  const previousData = useMemo(
+    () => range === '1d' ? activeDailyData.slice(-2, -1) : activeDailyData.slice(-(rangeDays * 2), -rangeDays),
+    [activeDailyData, range, rangeDays],
+  )
 
   const summary = useMemo(() => {
     const totals = sumData(chartData)
     const previous = sumData(previousData)
-    const timestamps = feedTimestamps
+    const timestamps = feedSessionTimestamps
       .map(value => new Date(value).getTime())
       .filter(value => Number.isFinite(value))
       .sort((a, b) => a - b)
@@ -224,18 +244,19 @@ export function AnalyticsPanel({
       formulaPerFeed: avg(totals.formulaMl, totals.formulaCount),
       breastPerFeed: avg(totals.breastMins, Math.max(totals.breastCount - totals.breastMilkCount, 0)),
       breastMilkPerFeed: avg(totals.breastMilkMl, totals.breastMilkCount),
-      feedsPerDay: avg(totals.feedCount, range === '1d' ? 1 : chartData.length, 1),
+      feedSessionsPerDay: avg(totals.feedSessionCount, range === '1d' ? 1 : chartData.length, 1),
       nappiesPerDay: avg(totals.totalNappies, range === '1d' ? 1 : chartData.length, 1),
       avgGap,
       longestGap,
     }
-  }, [chartData, feedTimestamps, previousData, range])
+  }, [chartData, feedSessionTimestamps, previousData, range])
 
-  const hasFeedData = summary.totals.feedCount > 0
+  const hasFeedData = summary.totals.feedSessionCount > 0
   const hasFormulaData = summary.totals.formulaMl > 0
   const hasBreastData = summary.totals.breastMins > 0 || summary.totals.breastMilkMl > 0
   const hasNappyData = summary.totals.totalNappies > 0
-  const xInterval = range === '30d' ? 4 : 0
+  const xInterval = range === '30d' && chartData.length > 12 ? 4 : 0
+  const activeDayLabel = `${chartData.length} active ${chartData.length === 1 ? 'day' : 'days'}`
 
   if (!mounted) {
     return (
@@ -322,21 +343,21 @@ export function AnalyticsPanel({
         {category === 'feeds' ? (
           <>
             <SummaryCard
-              label="Total Feeds"
-              value={compactNumber(summary.totals.feedCount)}
+              label="Feed Sessions"
+              value={compactNumber(summary.totals.feedSessionCount)}
               tone="text-emerald-400"
-              helper={percentChange(summary.totals.feedCount, summary.previous.feedCount)}
+              helper={percentChange(summary.totals.feedSessionCount, summary.previous.feedSessionCount)}
             />
             <SummaryCard
-              label="Feeds / Day"
-              value={String(summary.feedsPerDay)}
-              helper={`${summary.totals.formulaCount} formula, ${summary.totals.breastCount} breast`}
+              label="Sessions / Day"
+              value={String(summary.feedSessionsPerDay)}
+              helper={`${summary.totals.feedCount} feed entries`}
             />
             <SummaryCard
               label="Avg Gap"
               value={formatHours(summary.avgGap)}
               tone="text-sky-400"
-              helper="Between feeds"
+              helper="Between sessions"
             />
             <SummaryCard
               label="Longest Gap"
@@ -394,7 +415,7 @@ export function AnalyticsPanel({
         <h3 className="text-sm font-semibold text-muted-foreground mb-4">
           {category === 'feeds'
             ? feedView === 'combined'
-              ? 'Feed count over time'
+              ? 'Feed sessions over time'
               : feedView === 'formula'
                 ? 'Formula volume over time'
                 : summary.totals.breastMins > 0
@@ -412,8 +433,7 @@ export function AnalyticsPanel({
                   <XAxis dataKey="date" interval={xInterval} stroke="currentColor" className="text-muted-foreground" tickLine={false} />
                   <YAxis allowDecimals={false} stroke="currentColor" className="text-muted-foreground" tickLine={false} axisLine={false} />
                   <Tooltip content={<ChartTooltip />} />
-                  <Bar dataKey="formulaCount" name="Formula" stackId="feed" fill="#f59e0b" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="breastCount" name="Breast" stackId="feed" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="feedSessionCount" name="Sessions" fill="#10b981" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : <EmptyChart label="No feeds logged in this range yet." />
@@ -506,11 +526,11 @@ export function AnalyticsPanel({
         <div className="grid grid-cols-2 gap-3 text-xs text-muted-foreground">
           <div className="flex items-center gap-2 rounded-xl border border-muted/30 bg-muted/10 p-3">
             <Clock3 className="h-4 w-4 text-sky-400" />
-            <span>Previous period: {summary.previous.feedCount} feeds</span>
+            <span>Previous period: {summary.previous.feedSessionCount} sessions</span>
           </div>
           <div className="flex items-center gap-2 rounded-xl border border-muted/30 bg-muted/10 p-3">
             <Droplets className="h-4 w-4 text-violet-400" />
-            <span>{range === '1d' ? '1' : range === '7d' ? '7' : '30'} day view</span>
+            <span>{range === '1d' ? 'Today' : activeDayLabel}</span>
           </div>
         </div>
       )}

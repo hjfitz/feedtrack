@@ -1,3 +1,4 @@
+import { feedSessionStarts } from '@/lib/feed-sessions'
 import type { DailySummary, FeedEntry, NappyEntry } from '@/lib/types'
 
 export function calculateSummary(
@@ -21,6 +22,7 @@ export function calculateSummary(
   return {
     date,
     feedCount: feedsInRange.length,
+    feedSessionCount: feedSessionStarts(feedsInRange).length,
     breastFeedCount: breastFeeds.length,
     formulaFeedCount: formulaFeeds.length,
     totalFormulaMl: formulaFeeds.reduce((sum, feed) => sum + (feed.volumeMl || 0), 0),

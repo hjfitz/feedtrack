@@ -5,6 +5,7 @@ import {
   type FeedViewOption,
   type RangeOption,
 } from '@/components/analytics-panel'
+import { feedSessionStarts } from '@/lib/feed-sessions'
 import { requireSessionHouseholdId } from '@/lib/server/auth'
 import { getHouseholdMeta } from '@/lib/server/blob-storage'
 import { getFeeds, getNappies } from '@/lib/server/tracker'
@@ -63,6 +64,7 @@ export default async function AnalyticsPage({
       date: chartLabel(d),
       rawDate: appDateKey(d),
       feedCount: 0,
+      feedSessionCount: 0,
       formulaCount: 0,
       breastCount: 0,
       formulaMl: 0,
@@ -81,6 +83,7 @@ export default async function AnalyticsPage({
     date: hourLabel(hour),
     rawDate: todayKey,
     feedCount: 0,
+    feedSessionCount: 0,
     formulaCount: 0,
     breastCount: 0,
     formulaMl: 0,
@@ -97,7 +100,19 @@ export default async function AnalyticsPage({
 
   const dayMap = new Map(dailyData.map(day => [day.rawDate, day]))
   const hourMap = new Map(hourlyData.map((hour, index) => [index, hour]))
-  const feedTimestamps: string[] = []
+  const feedSessionTimestamps: string[] = []
+
+  feedSessionStarts(feeds).forEach(timestamp => {
+    const dateKey = appDateKey(timestamp)
+    const day = dayMap.get(dateKey)
+    if (!day) return
+
+    day.feedSessionCount += 1
+    feedSessionTimestamps.push(timestamp.toISOString())
+
+    const hour = dateKey === todayKey ? hourMap.get(appHour(timestamp)) : null
+    if (hour) hour.feedSessionCount += 1
+  })
 
   feeds.forEach(feed => {
     const timestamp = new Date(feed.timestamp)
@@ -106,7 +121,6 @@ export default async function AnalyticsPage({
     if (!day) return
 
     day.feedCount += 1
-    feedTimestamps.push(timestamp.toISOString())
 
     const hour = dateKey === todayKey ? hourMap.get(appHour(timestamp)) : null
     if (hour) hour.feedCount += 1
@@ -172,7 +186,7 @@ export default async function AnalyticsPage({
       <AnalyticsPanel
         data={dailyData}
         hourlyData={hourlyData}
-        feedTimestamps={feedTimestamps}
+        feedSessionTimestamps={feedSessionTimestamps}
         initialRange={initialRange}
         initialCategory={initialCategory}
         initialFeedView={initialFeedView}
