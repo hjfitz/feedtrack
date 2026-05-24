@@ -13,6 +13,7 @@ export default async function SettingsPage() {
         inviteCode={meta?.inviteCode || null}
         babyName={meta?.babyName || ''}
         babyDob={meta?.babyDob || ''}
+        feedingIntervalMinutes={meta?.feedingIntervalMinutes || ''}
       />
     </AppShell>
   )

@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { estimateNextFeed, formatNextFeedEstimate } from '@/lib/feed-estimate'
 import { formatAppDateTimeLocal } from '@/lib/timezone'
 import type { DailySummary, FeedEntry, NappyEntry } from '@/lib/types'
 
@@ -32,6 +31,18 @@ function formatSummaryMinutes(minutes: number): string {
   return mins ? `${hours}h ${mins}m` : `${hours}h`
 }
 
+function nextFeedEstimate(lastFeed: FeedEntry | null, feedingIntervalMinutes: number | undefined, now: Date) {
+  if (!lastFeed || !feedingIntervalMinutes) return ''
+
+  const lastFeedTime = new Date(lastFeed.timestamp).getTime()
+  if (!Number.isFinite(lastFeedTime)) return ''
+
+  const minutesUntil = Math.round((lastFeedTime + feedingIntervalMinutes * 60000 - now.getTime()) / 60000)
+  if (minutesUntil < 0) return `overdue · ${formatSummaryMinutes(Math.abs(minutesUntil))} ago`
+  if (minutesUntil <= 30) return `due soon · ~${formatSummaryMinutes(minutesUntil)}`
+  return `next feed ~${formatSummaryMinutes(minutesUntil)}`
+}
+
 const BREAST_PRESETS = [5, 10, 15, 20, 25, 30]
 const FORMULA_PRESETS = [30, 60, 90, 120, 150, 180]
 const EXPRESSED_PRESETS = [30, 60, 90, 120, 150, 180]
@@ -47,16 +58,14 @@ function formatFeedDetail(feed: FeedEntry) {
 
 export function HomePanel({
   lastFeed,
-  recentFeeds,
   lastNappy,
   summary,
-  babyDob,
+  feedingIntervalMinutes,
 }: {
   lastFeed: FeedEntry | null
-  recentFeeds: FeedEntry[]
   lastNappy: NappyEntry | null
   summary: DailySummary
-  babyDob?: string
+  feedingIntervalMinutes?: number
 }) {
   const [mode, setMode] = useState<QuickLogMode>('home')
   const [confirmation, setConfirmation] = useState<ConfirmationType>(null)
@@ -94,7 +103,7 @@ export function HomePanel({
   const canLogCustomExpressed = Number.isFinite(customExpressedValue) && customExpressedValue > 0
   const canLogCustomFormula = Number.isFinite(customFormulaValue) && customFormulaValue > 0
   const canLogNappy = Boolean(nappyType && nappyTimestamp)
-  const nextFeedEstimate = estimateNextFeed(recentFeeds, babyDob, now)
+  const nextFeedText = nextFeedEstimate(lastFeed, feedingIntervalMinutes, now)
 
   const ConfirmationToast = () => {
     if (!confirmation) return null
@@ -110,7 +119,7 @@ export function HomePanel({
     const config = configs[confirmation]
 
     return (
-      <div className="fixed inset-x-4 top-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+      <div className="fixed inset-x-4 bottom-[calc(5.75rem+env(safe-area-inset-bottom,0px))] z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
         <div className={`${config.color} rounded-2xl px-5 py-4 flex items-center gap-3 shadow-lg`}>
           <span className="text-white text-xl">✓</span>
           <span className="text-white font-semibold text-lg flex-1">{config.label}</span>
@@ -289,7 +298,7 @@ export function HomePanel({
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Since feed</p>
             <p className="whitespace-nowrap text-2xl font-bold text-foreground tabular-nums sm:text-3xl">{formatTimeSince(lastFeed?.timestamp ?? null, now)}</p>
             {lastFeed && <p className="text-sm text-muted-foreground mt-1">{formatFeedDetail(lastFeed)}</p>}
-            {nextFeedEstimate && <p className="text-xs text-muted-foreground/80 mt-2">{formatNextFeedEstimate(nextFeedEstimate)}</p>}
+            {nextFeedText && <p className="text-xs text-muted-foreground/80 mt-2">{nextFeedText}</p>}
           </div>
           <div className="rounded-2xl bg-muted/50 p-4 text-center border border-muted">
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Since nappy</p>
@@ -361,7 +370,7 @@ export function HomePanel({
         </div>
       </div>
     )
-  }, [babyDob, canLogCustomBreast, canLogCustomExpressed, canLogCustomFormula, customBreastMinutes, customBreastValue, customExpressedMl, customExpressedValue, customFormulaMl, customFormulaValue, feedTimestamp, isLogging, lastFeed, lastNappy, mode, nextFeedEstimate, now, recentFeeds, summary])
+  }, [canLogCustomBreast, canLogCustomExpressed, canLogCustomFormula, customBreastMinutes, customBreastValue, customExpressedMl, customExpressedValue, customFormulaMl, customFormulaValue, feedTimestamp, feedingIntervalMinutes, isLogging, lastFeed, lastNappy, mode, nextFeedText, now, summary])
 
   return (
     <>

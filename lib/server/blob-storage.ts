@@ -15,6 +15,7 @@ export interface HouseholdMeta {
   inviteCode: string
   babyName?: string
   babyDob?: string
+  feedingIntervalMinutes?: number
 }
 
 interface StoredHouseholdData {

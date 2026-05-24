@@ -82,6 +82,7 @@ export async function changePasswordAction(_state: AuthFormState, formData: Form
 export async function updateBabyDetailsAction(_state: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const babyName = getString(formData, 'babyName').trim()
   const babyDob = getString(formData, 'babyDob')
+  const feedingIntervalValue = getString(formData, 'feedingIntervalMinutes')
 
   try {
     if (babyDob) {
@@ -90,6 +91,10 @@ export async function updateBabyDetailsAction(_state: AuthFormState, formData: F
         throw new AppError('Date of birth is invalid')
       }
     }
+    const feedingIntervalMinutes = feedingIntervalValue ? Number(feedingIntervalValue) : undefined
+    if (feedingIntervalMinutes !== undefined && (!Number.isFinite(feedingIntervalMinutes) || feedingIntervalMinutes < 30 || feedingIntervalMinutes > 720)) {
+      throw new AppError('Feeding interval must be between 30 minutes and 12 hours')
+    }
 
     const householdId = await requireSessionHouseholdId()
     const meta = await getHouseholdMeta(householdId)
@@ -97,6 +102,7 @@ export async function updateBabyDetailsAction(_state: AuthFormState, formData: F
       inviteCode: meta?.inviteCode || '',
       babyName: babyName || undefined,
       babyDob: babyDob || undefined,
+      feedingIntervalMinutes: feedingIntervalMinutes ? Math.round(feedingIntervalMinutes) : undefined,
     })
     revalidatePath('/')
     revalidatePath('/settings')

@@ -7,9 +7,11 @@ import { changePasswordAction, generateInviteAction, logoutAction, updateBabyDet
 function BabyDetailsForm({
   babyName,
   babyDob,
+  feedingIntervalMinutes,
 }: {
   babyName: string
   babyDob: string
+  feedingIntervalMinutes: number | ''
 }) {
   const [state, action] = useActionState(updateBabyDetailsAction, { error: '' })
 
@@ -26,6 +28,15 @@ function BabyDetailsForm({
       <div className="flex flex-col gap-2">
         <label htmlFor="baby-dob" className="text-sm text-muted-foreground">Date of birth</label>
         <input id="baby-dob" name="babyDob" type="date" defaultValue={babyDob} className="h-12 rounded-xl bg-background border border-border px-4 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50" />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label htmlFor="feeding-interval" className="text-sm text-muted-foreground">Feeding interval</label>
+        <div className="relative">
+          <input id="feeding-interval" name="feedingIntervalMinutes" type="number" inputMode="numeric" min="30" max="720" step="5" defaultValue={feedingIntervalMinutes} placeholder="180" className="h-12 w-full rounded-xl bg-background border border-border px-4 pr-16 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50" />
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">min</span>
+        </div>
+        <p className="text-xs text-muted-foreground">Used for the next feed estimate on the home screen.</p>
       </div>
 
       <button type="submit" className="h-12 w-full rounded-xl bg-sky-500 text-white font-medium flex items-center justify-center gap-2 hover:bg-sky-400 active:scale-[0.98] transition-all">
@@ -84,10 +95,12 @@ export function SettingsPanel({
   inviteCode,
   babyName,
   babyDob,
+  feedingIntervalMinutes,
 }: {
   inviteCode: string | null
   babyName: string
   babyDob: string
+  feedingIntervalMinutes: number | ''
 }) {
   const [copied, setCopied] = useState(false)
 
@@ -106,7 +119,7 @@ export function SettingsPanel({
           <p className="text-sm text-muted-foreground mt-1">Shown on the home screen header.</p>
         </div>
 
-        <BabyDetailsForm babyName={babyName} babyDob={babyDob} />
+        <BabyDetailsForm babyName={babyName} babyDob={babyDob} feedingIntervalMinutes={feedingIntervalMinutes} />
       </section>
 
       <section className="rounded-xl bg-muted/40 border border-muted p-4">

@@ -37,7 +37,7 @@ export function AppShell({
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <header className="flex-none px-4 pt-12 pb-4">
+      <header className="flex-none px-4 pt-[calc(3rem+env(safe-area-inset-top,0px))] pb-4">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">{trackerTitle(babyName)}</h1>
           <p className="text-sm text-muted-foreground mt-1">
