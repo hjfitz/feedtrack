@@ -24,12 +24,7 @@ export default async function HomePage() {
       <DesktopHomePanel
         overview={data}
         history={historyData}
-        analytics={{
-          ...analyticsData,
-          initialRange: '7d',
-          initialCategory: 'feeds',
-          initialFeedView: 'combined',
-        }}
+        analytics={analyticsData}
         feedingIntervalMinutes={meta?.feedingIntervalMinutes}
       />
     </AppShell>
