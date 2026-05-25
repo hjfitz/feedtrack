@@ -15,7 +15,7 @@ export function BottomNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="flex-none fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border safe-area-pb">
+    <nav className="flex-none fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border safe-area-pb lg:hidden">
       <div className="flex justify-around py-2">
         {tabs.map(tab => {
           const Icon = tab.icon

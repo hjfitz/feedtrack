@@ -17,16 +17,10 @@ import {
 } from '@/components/ui/alert-dialog'
 import { appDateKey, formatAppDate, formatAppDateTimeLocal, formatAppTime } from '@/lib/timezone'
 import type { FeedEntry, NappyEntry } from '@/lib/types'
+import type { HistoryItem } from '@/lib/server/history-data'
 
 export type FilterType = 'all' | 'feeds' | 'nappies'
 export type TimeRange = 'today' | '12h' | '24h' | '7d'
-
-interface HistoryItem {
-  id: string
-  type: 'feed' | 'nappy'
-  timestamp: Date
-  data: FeedEntry | NappyEntry
-}
 
 function formatTime(date: Date): string {
   return formatAppTime(date)
@@ -268,16 +262,30 @@ export function HistoryPanel({
   type,
   range,
   exportHref,
+  variant = 'full',
 }: {
   items: HistoryItem[]
   groupedItems: { date: string; items: HistoryItem[] }[]
   type: FilterType
   range: TimeRange
   exportHref: string
+  variant?: 'full' | 'compact'
 }) {
+  const isCompact = variant === 'compact'
+
   return (
-    <div className="flex flex-col h-full gap-4">
-      <div className="flex flex-col gap-3">
+    <div className="flex flex-col h-full min-h-0 gap-4">
+      {isCompact ? (
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Recent activity</h2>
+            <p className="text-sm text-muted-foreground">Last 24 hours</p>
+          </div>
+          <Link href="/history?type=all&range=24h" className="text-sm font-medium text-muted-foreground hover:text-foreground">
+            Details
+          </Link>
+        </div>
+      ) : <div className="flex flex-col gap-3">
         <div className="flex gap-2">
           {(['all', 'feeds', 'nappies'] as FilterType[]).map(filter => (
             <Link key={filter} href={filterHref(filter, range)} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors capitalize text-center ${type === filter ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground'}`}>
@@ -297,7 +305,7 @@ export function HistoryPanel({
             </Link>
           ))}
         </div>
-      </div>
+      </div>}
 
       <div className="flex-1 overflow-y-auto min-h-0">
         {items.length === 0 ? (
@@ -319,10 +327,10 @@ export function HistoryPanel({
         )}
       </div>
 
-      <a href={exportHref} className="flex items-center justify-center gap-2 py-4 rounded-2xl bg-muted text-foreground font-medium active:bg-muted/70 transition-colors">
+      {!isCompact && <a href={exportHref} className="flex items-center justify-center gap-2 py-4 rounded-2xl bg-muted text-foreground font-medium active:bg-muted/70 transition-colors">
         <Download className="w-5 h-5" aria-hidden="true" />
         Export CSV
-      </a>
+      </a>}
     </div>
   )
 }

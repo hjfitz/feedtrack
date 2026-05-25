@@ -15,25 +15,7 @@ import {
 } from 'recharts'
 import { Baby, Clock3, Droplets, Flame, GlassWater, Layers3 } from 'lucide-react'
 import { appDateKey } from '@/lib/timezone'
-
-interface DailyData {
-  date: string
-  rawDate: string
-  feedCount: number
-  feedSessionCount: number
-  formulaCount: number
-  breastCount: number
-  formulaMl: number
-  breastMins: number
-  breastMilkMl: number
-  breastMilkCount: number
-  wetOnly: number
-  dirtyOnly: number
-  both: number
-  wetTotal: number
-  dirtyTotal: number
-  totalNappies: number
-}
+import type { AnalyticsDataPoint } from '@/lib/server/analytics-data'
 
 export type RangeOption = '1d' | '7d' | '30d'
 export type CategoryOption = 'feeds' | 'nappies'
@@ -79,7 +61,7 @@ function avg(total: number, count: number, precision = 0) {
   return Math.round((total / count) * factor) / factor
 }
 
-function sumData(days: DailyData[]) {
+function sumData(days: AnalyticsDataPoint[]) {
   return days.reduce(
     (totals, day) => ({
       feedCount: totals.feedCount + day.feedCount,
@@ -116,7 +98,7 @@ function sumData(days: DailyData[]) {
   )
 }
 
-function hasDataForView(day: DailyData, category: CategoryOption, feedView: FeedViewOption) {
+function hasDataForView(day: AnalyticsDataPoint, category: CategoryOption, feedView: FeedViewOption) {
   if (category === 'nappies') return day.totalNappies > 0
   if (feedView === 'formula') return day.formulaMl > 0 || day.formulaCount > 0
   if (feedView === 'breast') return day.breastMins > 0 || day.breastMilkMl > 0 || day.breastCount > 0
@@ -173,13 +155,15 @@ export function AnalyticsPanel({
   initialRange,
   initialCategory,
   initialFeedView,
+  variant = 'full',
 }: {
-  data: DailyData[]
-  hourlyData: DailyData[]
+  data: AnalyticsDataPoint[]
+  hourlyData: AnalyticsDataPoint[]
   feedSessionTimestamps: string[]
   initialRange: RangeOption
   initialCategory: CategoryOption
   initialFeedView: FeedViewOption
+  variant?: 'full' | 'compact'
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -257,26 +241,41 @@ export function AnalyticsPanel({
   const hasNappyData = summary.totals.totalNappies > 0
   const xInterval = range === '30d' && chartData.length > 12 ? 4 : 0
   const activeDayLabel = `${chartData.length} active ${chartData.length === 1 ? 'day' : 'days'}`
+  const isCompact = variant === 'compact'
 
   if (!mounted) {
     return (
-      <div className="flex flex-col gap-6 animate-pulse">
-        <div className="flex gap-2">
-          <div className="flex-1 h-10 bg-muted rounded-lg" />
-          <div className="flex-1 h-10 bg-muted rounded-lg" />
-        </div>
+      <div className="flex flex-col gap-4 animate-pulse">
+        {!isCompact && (
+          <div className="flex gap-2">
+            <div className="flex-1 h-10 bg-muted rounded-lg" />
+            <div className="flex-1 h-10 bg-muted rounded-lg" />
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div className="h-24 bg-muted/50 rounded-2xl" />
           <div className="h-24 bg-muted/50 rounded-2xl" />
         </div>
-        <div className="h-80 bg-muted/30 rounded-2xl" />
+        <div className={isCompact ? 'h-64 bg-muted/30 rounded-2xl' : 'h-80 bg-muted/30 rounded-2xl'} />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex justify-between items-center bg-muted/30 p-1 rounded-xl border border-muted/50">
+    <div className={isCompact ? 'flex flex-col gap-4' : 'flex flex-col gap-6'}>
+      {isCompact && (
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Patterns</h2>
+            <p className="text-sm text-muted-foreground">Feed sessions over 7 days</p>
+          </div>
+          <a href="/analytics" className="text-sm font-medium text-muted-foreground hover:text-foreground">
+            Details
+          </a>
+        </div>
+      )}
+
+      {!isCompact && <div className="flex justify-between items-center bg-muted/30 p-1 rounded-xl border border-muted/50">
         {(['1d', '7d', '30d'] as RangeOption[]).map(option => (
           <button
             key={option}
@@ -288,9 +287,9 @@ export function AnalyticsPanel({
             {option === '1d' ? 'Today' : option === '7d' ? 'Last 7 Days' : 'Last 30 Days'}
           </button>
         ))}
-      </div>
+      </div>}
 
-      <div className="flex gap-3">
+      {!isCompact && <div className="flex gap-3">
         <button
           onClick={() => updateFilters({ category: 'feeds' })}
           className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border-2 font-bold transition-all ${
@@ -313,9 +312,9 @@ export function AnalyticsPanel({
           <Baby className="w-5 h-5" />
           Nappies
         </button>
-      </div>
+      </div>}
 
-      {category === 'feeds' && (
+      {!isCompact && category === 'feeds' && (
         <div className="grid grid-cols-3 gap-2 bg-muted/15 p-1 rounded-xl border border-muted/30">
           {[
             { value: 'combined', label: 'Count', icon: Layers3, active: 'bg-emerald-500' },
@@ -384,7 +383,7 @@ export function AnalyticsPanel({
         )}
       </div>
 
-      {category === 'feeds' && feedView !== 'combined' && (
+      {!isCompact && category === 'feeds' && feedView !== 'combined' && (
         <div className="grid grid-cols-2 gap-3">
           <SummaryCard
             label={feedView === 'formula' ? 'Total Formula' : 'Total Duration'}
@@ -411,7 +410,7 @@ export function AnalyticsPanel({
         </div>
       )}
 
-      <div className="bg-muted/20 border border-muted/30 rounded-2xl p-4 h-80 flex flex-col justify-center">
+      <div className={`bg-muted/20 border border-muted/30 rounded-2xl p-4 flex flex-col justify-center ${isCompact ? 'h-72' : 'h-80'}`}>
         <h3 className="text-sm font-semibold text-muted-foreground mb-4">
           {category === 'feeds'
             ? feedView === 'combined'
@@ -505,7 +504,7 @@ export function AnalyticsPanel({
         </div>
       </div>
 
-      {category === 'nappies' && (
+      {!isCompact && category === 'nappies' && (
         <div className="flex flex-wrap justify-center gap-3 bg-muted/10 p-3 rounded-xl border border-muted/30 text-xs">
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 bg-blue-500 rounded-sm" />
@@ -522,7 +521,7 @@ export function AnalyticsPanel({
         </div>
       )}
 
-      {category === 'feeds' && (
+      {!isCompact && category === 'feeds' && (
         <div className="grid grid-cols-2 gap-3 text-xs text-muted-foreground">
           <div className="flex items-center gap-2 rounded-xl border border-muted/30 bg-muted/10 p-3">
             <Clock3 className="h-4 w-4 text-sky-400" />

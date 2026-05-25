@@ -32,6 +32,7 @@ function getTimestamp(formData: FormData) {
 function revalidateTrackerPages() {
   revalidatePath('/')
   revalidatePath('/history')
+  revalidatePath('/analytics')
 }
 
 function getFeedPayload(type: FeedType, formData: FormData) {
