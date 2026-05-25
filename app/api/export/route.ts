@@ -11,9 +11,10 @@ export async function GET(request: Request) {
   const start = parseDate(params.get('start')) || new Date(0)
   const end = parseDate(params.get('end')) || new Date()
 
-  const [feeds, nappies] = await Promise.all([
+  const [feeds, nappies, pumps] = await Promise.all([
     getHouseholdData(householdId, 'feeds'),
     getHouseholdData(householdId, 'nappies'),
+    getHouseholdData(householdId, 'pumps'),
   ])
 
   const feedEntries = feeds
@@ -42,8 +43,19 @@ export async function GET(request: Request) {
       details: `${nappy.type}${nappy.notes ? ' - ' + nappy.notes : ''}`,
     }))
 
+  const pumpEntries = pumps
+    .filter(pump => {
+      const timestamp = new Date(pump.timestamp)
+      return timestamp >= start && timestamp <= end
+    })
+    .map(pump => ({
+      type: 'Pump' as const,
+      timestamp: new Date(pump.timestamp),
+      details: `${Math.round((pump.durationSeconds || 0) / 60)} min, ${pump.volumeMl || 0} ml`,
+    }))
+
   const lines = ['Type,Date,Time,Details']
-  ;[...feedEntries, ...nappyEntries]
+  ;[...feedEntries, ...nappyEntries, ...pumpEntries]
     .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
     .forEach(entry => {
       lines.push([

@@ -1,5 +1,5 @@
 import { feedSessionStarts } from '@/lib/feed-sessions'
-import { getFeeds, getNappies } from '@/lib/server/tracker'
+import { getFeeds, getNappies, getPumps } from '@/lib/server/tracker'
 import { addAppDays, appDateKey, formatAppDate, startOfAppDay } from '@/lib/timezone'
 import type { CategoryOption, FeedViewOption, RangeOption } from '@/components/analytics-panel'
 
@@ -16,6 +16,9 @@ export interface AnalyticsDataPoint {
   breastMins: number
   breastMilkMl: number
   breastMilkCount: number
+  pumpCount: number
+  pumpMins: number
+  pumpMl: number
   wetOnly: number
   dirtyOnly: number
   both: number
@@ -29,7 +32,7 @@ export function validAnalyticsRange(value: string | undefined): RangeOption {
 }
 
 export function validAnalyticsCategory(value: string | undefined): CategoryOption {
-  return value === 'nappies' || value === 'feeds' ? value : 'feeds'
+  return value === 'nappies' || value === 'pumps' || value === 'feeds' ? value : 'feeds'
 }
 
 export function validAnalyticsFeedView(value: string | undefined): FeedViewOption {
@@ -60,6 +63,9 @@ function emptyPoint(date: string, rawDate: string): AnalyticsDataPoint {
     breastMins: 0,
     breastMilkMl: 0,
     breastMilkCount: 0,
+    pumpCount: 0,
+    pumpMins: 0,
+    pumpMl: 0,
     wetOnly: 0,
     dirtyOnly: 0,
     both: 0,
@@ -71,9 +77,10 @@ function emptyPoint(date: string, rawDate: string): AnalyticsDataPoint {
 
 export async function getAnalyticsPanelData(householdId: string) {
   const since = new Date(Date.now() - DAYS_TO_LOAD * 24 * 60 * 60 * 1000)
-  const [feeds, nappies] = await Promise.all([
+  const [feeds, nappies, pumps] = await Promise.all([
     getFeeds(householdId, since),
     getNappies(householdId, since),
+    getPumps(householdId, since),
   ])
 
   const todayStart = startOfAppDay()
@@ -128,6 +135,24 @@ export async function getAnalyticsPanelData(householdId: string) {
         hour.formulaCount += 1
         hour.formulaMl += feed.volumeMl || 0
       }
+    }
+  })
+
+  pumps.forEach(pump => {
+    const timestamp = new Date(pump.timestamp)
+    const dateKey = appDateKey(timestamp)
+    const day = dayMap.get(dateKey)
+    if (!day) return
+
+    day.pumpCount += 1
+    day.pumpMins += Math.round((pump.durationSeconds || 0) / 60)
+    day.pumpMl += pump.volumeMl || 0
+
+    const hour = dateKey === todayKey ? hourMap.get(appHour(timestamp)) : null
+    if (hour) {
+      hour.pumpCount += 1
+      hour.pumpMins += Math.round((pump.durationSeconds || 0) / 60)
+      hour.pumpMl += pump.volumeMl || 0
     }
   })
 

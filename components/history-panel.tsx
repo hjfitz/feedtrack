@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { Check, Download, Pencil, Trash2, X } from 'lucide-react'
-import { deleteFeedAction, deleteNappyAction, updateFeedAction, updateNappyAction } from '@/app/actions/tracker'
+import { deleteFeedAction, deleteNappyAction, deletePumpAction, updateFeedAction, updateNappyAction, updatePumpAction } from '@/app/actions/tracker'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,10 +16,10 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { appDateKey, formatAppDate, formatAppDateTimeLocal, formatAppTime } from '@/lib/timezone'
-import type { FeedEntry, NappyEntry } from '@/lib/types'
+import type { FeedEntry, NappyEntry, PumpEntry } from '@/lib/types'
 import type { HistoryItem } from '@/lib/server/history-data'
 
-export type FilterType = 'all' | 'feeds' | 'nappies'
+export type FilterType = 'all' | 'feeds' | 'nappies' | 'pumps'
 export type TimeRange = 'today' | '12h' | '24h' | '7d'
 
 function formatTime(date: Date): string {
@@ -37,6 +37,10 @@ function formatDate(date: Date): string {
 
 function formatDuration(seconds: number): string {
   return `${Math.floor(seconds / 60)}m`
+}
+
+function formatPumpDetail(pump: PumpEntry) {
+  return `${formatDuration(pump.durationSeconds)} · ${pump.volumeMl}ml`
 }
 
 type FeedKind = 'breast' | 'expressed' | 'formula'
@@ -256,6 +260,80 @@ function NappyItem({ nappy }: { nappy: NappyEntry }) {
   )
 }
 
+function PumpItem({ pump }: { pump: PumpEntry }) {
+  const [editing, setEditing] = useState(false)
+  const [durationMinutes, setDurationMinutes] = useState(String(Math.round((pump.durationSeconds || 0) / 60)))
+  const [volumeMl, setVolumeMl] = useState(String(pump.volumeMl || 0))
+  const [timestamp, setTimestamp] = useState(formatAppDateTimeLocal(pump.timestamp))
+  const [isPending, startTransition] = useTransition()
+  const durationValue = Number(durationMinutes)
+  const volumeValue = Number(volumeMl)
+  const canSave = Number.isFinite(durationValue) && durationValue > 0 && Number.isFinite(volumeValue) && volumeValue > 0 && timestamp
+
+  if (editing) {
+    return (
+      <form
+        action={(formData) => {
+          if (!canSave) return
+          startTransition(async () => {
+            await updatePumpAction(formData)
+            setEditing(false)
+          })
+        }}
+        className="py-3 flex flex-col gap-3"
+      >
+        <input type="hidden" name="id" value={pump.id} />
+        <input type="hidden" name="durationMinutes" value={durationMinutes} />
+        <input type="hidden" name="volumeMl" value={volumeMl} />
+        <input type="hidden" name="timestamp" value={timestamp} />
+        <input type="datetime-local" value={timestamp} onChange={(event) => setTimestamp(event.target.value)} disabled={isPending} className="h-11 rounded-lg bg-background border border-border px-3 text-sm text-foreground disabled:opacity-50 disabled:cursor-not-allowed" />
+        <div className="grid grid-cols-2 gap-2">
+          <div className="relative">
+            <input type="number" inputMode="numeric" min="1" step="1" value={durationMinutes} onChange={(event) => setDurationMinutes(event.target.value)} disabled={isPending} className="h-11 w-full rounded-lg bg-background border border-border px-3 pr-12 text-sm text-foreground disabled:opacity-50 disabled:cursor-not-allowed" />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">min</span>
+          </div>
+          <div className="relative">
+            <input type="number" inputMode="numeric" min="1" step="1" value={volumeMl} onChange={(event) => setVolumeMl(event.target.value)} disabled={isPending} className="h-11 w-full rounded-lg bg-background border border-border px-3 pr-10 text-sm text-foreground disabled:opacity-50 disabled:cursor-not-allowed" />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">ml</span>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={() => setEditing(false)} disabled={isPending} className="h-10 w-10 rounded-lg grid place-items-center text-muted-foreground bg-muted disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Cancel edit" title="Cancel edit">
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <button type="submit" disabled={!canSave || isPending} className="h-10 w-10 rounded-lg grid place-items-center text-white bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Save pump" title="Save pump">
+            <Check className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      </form>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-3 py-3">
+      <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-emerald-500/20">
+        <span className="text-sm font-bold text-emerald-400">P</span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-foreground">Pump session</p>
+        <p className="text-xs text-muted-foreground">{formatTime(pump.timestamp)}</p>
+      </div>
+      <div className="text-sm font-semibold text-emerald-400 tabular-nums">{formatPumpDetail(pump)}</div>
+      <div className="flex gap-1 shrink-0">
+        <button type="button" onClick={() => setEditing(true)} className="h-9 w-9 rounded-lg grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" aria-label="Edit pump" title="Edit pump">
+          <Pencil className="h-4 w-4" aria-hidden="true" />
+        </button>
+        <form action={deletePumpAction}>
+          <input type="hidden" name="id" value={pump.id} />
+          <ActionIcon label="Delete pump">
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+          </ActionIcon>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export function HistoryPanel({
   items,
   groupedItems,
@@ -287,7 +365,7 @@ export function HistoryPanel({
         </div>
       ) : <div className="flex flex-col gap-3">
         <div className="flex gap-2">
-          {(['all', 'feeds', 'nappies'] as FilterType[]).map(filter => (
+          {(['all', 'feeds', 'nappies', 'pumps'] as FilterType[]).map(filter => (
             <Link key={filter} href={filterHref(filter, range)} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors capitalize text-center ${type === filter ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground'}`}>
               {filter}
             </Link>
@@ -318,7 +396,9 @@ export function HistoryPanel({
                 <div className="rounded-xl bg-muted/30 px-4 divide-y divide-muted/50">
                   {group.items.map(item => item.type === 'feed'
                     ? <FeedItem key={item.id} feed={item.data as FeedEntry} />
-                    : <NappyItem key={item.id} nappy={item.data as NappyEntry} />
+                    : item.type === 'nappy'
+                      ? <NappyItem key={item.id} nappy={item.data as NappyEntry} />
+                      : <PumpItem key={item.id} pump={item.data as PumpEntry} />
                   )}
                 </div>
               </div>

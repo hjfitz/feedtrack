@@ -18,7 +18,7 @@ import { appDateKey } from '@/lib/timezone'
 import type { AnalyticsDataPoint } from '@/lib/server/analytics-data'
 
 export type RangeOption = '1d' | '7d' | '30d'
-export type CategoryOption = 'feeds' | 'nappies'
+export type CategoryOption = 'feeds' | 'nappies' | 'pumps'
 export type FeedViewOption = 'combined' | 'formula' | 'breast'
 
 interface TooltipPayload {
@@ -72,6 +72,9 @@ function sumData(days: AnalyticsDataPoint[]) {
       breastMins: totals.breastMins + day.breastMins,
       breastMilkMl: totals.breastMilkMl + day.breastMilkMl,
       breastMilkCount: totals.breastMilkCount + day.breastMilkCount,
+      pumpCount: totals.pumpCount + day.pumpCount,
+      pumpMins: totals.pumpMins + day.pumpMins,
+      pumpMl: totals.pumpMl + day.pumpMl,
       wetOnly: totals.wetOnly + day.wetOnly,
       dirtyOnly: totals.dirtyOnly + day.dirtyOnly,
       both: totals.both + day.both,
@@ -88,6 +91,9 @@ function sumData(days: AnalyticsDataPoint[]) {
       breastMins: 0,
       breastMilkMl: 0,
       breastMilkCount: 0,
+      pumpCount: 0,
+      pumpMins: 0,
+      pumpMl: 0,
       wetOnly: 0,
       dirtyOnly: 0,
       both: 0,
@@ -100,6 +106,7 @@ function sumData(days: AnalyticsDataPoint[]) {
 
 function hasDataForView(day: AnalyticsDataPoint, category: CategoryOption, feedView: FeedViewOption) {
   if (category === 'nappies') return day.totalNappies > 0
+  if (category === 'pumps') return day.pumpCount > 0 || day.pumpMl > 0 || day.pumpMins > 0
   if (feedView === 'formula') return day.formulaMl > 0 || day.formulaCount > 0
   if (feedView === 'breast') return day.breastMins > 0 || day.breastMilkMl > 0 || day.breastCount > 0
   return day.feedSessionCount > 0
@@ -228,6 +235,8 @@ export function AnalyticsPanel({
       formulaPerFeed: avg(totals.formulaMl, totals.formulaCount),
       breastPerFeed: avg(totals.breastMins, Math.max(totals.breastCount - totals.breastMilkCount, 0)),
       breastMilkPerFeed: avg(totals.breastMilkMl, totals.breastMilkCount),
+      pumpMlPerSession: avg(totals.pumpMl, totals.pumpCount),
+      pumpMinutesPerSession: avg(totals.pumpMins, totals.pumpCount),
       feedSessionsPerDay: avg(totals.feedSessionCount, range === '1d' ? 1 : chartData.length, 1),
       nappiesPerDay: avg(totals.totalNappies, range === '1d' ? 1 : chartData.length, 1),
       avgGap,
@@ -239,6 +248,7 @@ export function AnalyticsPanel({
   const hasFormulaData = summary.totals.formulaMl > 0
   const hasBreastData = summary.totals.breastMins > 0 || summary.totals.breastMilkMl > 0
   const hasNappyData = summary.totals.totalNappies > 0
+  const hasPumpData = summary.totals.pumpCount > 0
   const xInterval = range === '30d' && chartData.length > 12 ? 4 : 0
   const activeDayLabel = `${chartData.length} active ${chartData.length === 1 ? 'day' : 'days'}`
   const isCompact = variant === 'compact'
@@ -312,6 +322,17 @@ export function AnalyticsPanel({
           <Baby className="w-5 h-5" />
           Nappies
         </button>
+        <button
+          onClick={() => updateFilters({ category: 'pumps' })}
+          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border-2 font-bold transition-all ${
+            category === 'pumps'
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+              : 'bg-muted/30 border-muted/50 text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Droplets className="w-5 h-5" />
+          Pumps
+        </button>
       </div>}
 
       {!isCompact && category === 'feeds' && (
@@ -364,7 +385,7 @@ export function AnalyticsPanel({
               helper="Within selected range"
             />
           </>
-        ) : (
+        ) : category === 'nappies' ? (
           <>
             <SummaryCard
               label="Total Nappies"
@@ -379,6 +400,31 @@ export function AnalyticsPanel({
             />
             <SummaryCard label="Wet Total" value={String(summary.totals.wetTotal)} tone="text-blue-400" helper="Includes both" />
             <SummaryCard label="Dirty Total" value={String(summary.totals.dirtyTotal)} tone="text-orange-400" helper="Includes both" />
+          </>
+        ) : (
+          <>
+            <SummaryCard
+              label="Pump Sessions"
+              value={compactNumber(summary.totals.pumpCount)}
+              tone="text-emerald-400"
+              helper={percentChange(summary.totals.pumpCount, summary.previous.pumpCount)}
+            />
+            <SummaryCard
+              label="Total Pumped"
+              value={`${compactNumber(summary.totals.pumpMl)} ml`}
+              tone="text-emerald-400"
+              helper={`${summary.totals.pumpMins} min total`}
+            />
+            <SummaryCard
+              label="Avg / Session"
+              value={`${summary.pumpMlPerSession} ml`}
+              helper={`${summary.pumpMinutesPerSession} min avg`}
+            />
+            <SummaryCard
+              label="Total Time"
+              value={formatHours(summary.totals.pumpMins)}
+              helper="Pump duration"
+            />
           </>
         )}
       </div>
@@ -420,7 +466,9 @@ export function AnalyticsPanel({
                 : summary.totals.breastMins > 0
                   ? 'Breast feed minutes over time'
                   : 'Expressed breast milk over time'
-            : 'Nappy changes breakdown'}
+            : category === 'nappies'
+              ? 'Nappy changes breakdown'
+              : 'Pump volume over time'}
         </h3>
 
         <div className="flex-1 w-full h-full text-xs">
@@ -500,6 +548,20 @@ export function AnalyticsPanel({
                 </BarChart>
               </ResponsiveContainer>
             ) : <EmptyChart label="No nappies logged in this range yet." />
+          )}
+
+          {category === 'pumps' && (
+            hasPumpData ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                  <XAxis dataKey="date" interval={xInterval} stroke="currentColor" className="text-muted-foreground" tickLine={false} />
+                  <YAxis stroke="currentColor" className="text-muted-foreground" tickLine={false} axisLine={false} />
+                  <Tooltip content={<ChartTooltip unit="ml" />} />
+                  <Bar dataKey="pumpMl" name="Pumped" fill="#10b981" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : <EmptyChart label="No pump sessions logged in this range yet." />
           )}
         </div>
       </div>

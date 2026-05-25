@@ -16,7 +16,7 @@ import {
 } from '@/lib/server/blob-storage'
 import { calculateSummary } from '@/lib/server/summaries'
 import { parseAppDateTimeLocal, startOfAppDay } from '@/lib/timezone'
-import type { DailySummary, FeedEntry, FeedType, NappyEntry, NappyType } from '@/lib/types'
+import type { DailySummary, FeedEntry, FeedType, NappyEntry, NappyType, PumpEntry } from '@/lib/types'
 
 const INVITE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
@@ -63,6 +63,9 @@ function sortNappies(nappies: NappyEntry[]) {
   return nappies.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 }
 
+function sortPumps(pumps: PumpEntry[]) {
+  return pumps.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+}
 
 export async function getFeeds(householdId: string, since?: Date | null) {
   const feeds = sortFeeds(await getHouseholdData(householdId, 'feeds'))
@@ -74,37 +77,45 @@ export async function getNappies(householdId: string, since?: Date | null) {
   return since ? nappies.filter(nappy => new Date(nappy.timestamp).getTime() >= since.getTime()) : nappies
 }
 
+export async function getPumps(householdId: string, since?: Date | null) {
+  const pumps = sortPumps(await getHouseholdData(householdId, 'pumps'))
+  return since ? pumps.filter(pump => new Date(pump.timestamp).getTime() >= since.getTime()) : pumps
+}
 
 export async function getTodaySummary(householdId: string): Promise<DailySummary> {
   const now = new Date()
   const start = startOfAppDay(now)
-  const [feeds, nappies] = await Promise.all([
+  const [feeds, nappies, pumps] = await Promise.all([
     getHouseholdData(householdId, 'feeds'),
     getHouseholdData(householdId, 'nappies'),
+    getHouseholdData(householdId, 'pumps'),
   ])
-  return calculateSummary(feeds, nappies, start, now, now)
+  return calculateSummary(feeds, nappies, pumps, start, now, now)
 }
 
 export async function getHoursSummary(householdId: string, hours: number): Promise<DailySummary> {
   const now = new Date()
   const start = new Date(now.getTime() - Math.max(hours, 1) * 60 * 60 * 1000)
-  const [feeds, nappies] = await Promise.all([
+  const [feeds, nappies, pumps] = await Promise.all([
     getHouseholdData(householdId, 'feeds'),
     getHouseholdData(householdId, 'nappies'),
+    getHouseholdData(householdId, 'pumps'),
   ])
-  return calculateSummary(feeds, nappies, start, now, now)
+  return calculateSummary(feeds, nappies, pumps, start, now, now)
 }
 
 export async function getOverviewData(householdId: string) {
-  const [feeds, nappies, summary] = await Promise.all([
+  const [feeds, nappies, pumps, summary] = await Promise.all([
     getFeeds(householdId),
     getNappies(householdId),
+    getPumps(householdId),
     getTodaySummary(householdId),
   ])
 
   return {
     lastFeed: feeds[0] || null,
     lastNappy: nappies[0] || null,
+    lastPump: pumps[0] || null,
     summary,
   }
 }
@@ -230,6 +241,66 @@ export async function updateNappy(householdId: string, id: string, input: Partia
 export async function deleteNappy(householdId: string, id: string) {
   const nappies = await getHouseholdData(householdId, 'nappies')
   await setHouseholdData(householdId, 'nappies', nappies.filter(nappy => nappy.id !== id))
+}
+
+export async function addPump(
+  householdId: string,
+  input: { timestamp?: unknown; durationSeconds?: unknown; volumeMl?: unknown }
+) {
+  const timestamp = parseDate(input.timestamp)
+
+  if (!timestamp) {
+    throw new AppError('Valid timestamp is required')
+  }
+  if (typeof input.durationSeconds !== 'number' || input.durationSeconds <= 0) {
+    throw new AppError('Pump duration is required')
+  }
+  if (typeof input.volumeMl !== 'number' || input.volumeMl <= 0) {
+    throw new AppError('Pump volume is required')
+  }
+
+  const pump: PumpEntry = {
+    id: generateId(),
+    timestamp,
+    durationSeconds: Math.round(input.durationSeconds),
+    volumeMl: Math.round(input.volumeMl),
+  }
+
+  const pumps = await getHouseholdData(householdId, 'pumps')
+  await setHouseholdData(householdId, 'pumps', sortPumps([pump, ...pumps]))
+  return pump
+}
+
+export async function updatePump(householdId: string, id: string, input: Partial<PumpEntry>) {
+  const pumps = await getHouseholdData(householdId, 'pumps')
+  const index = pumps.findIndex(pump => pump.id === id)
+
+  if (index === -1) {
+    throw new AppError('Pump session not found', 404)
+  }
+
+  const updates: Partial<PumpEntry> = {}
+  if (typeof input.durationSeconds === 'number' && input.durationSeconds > 0) {
+    updates.durationSeconds = Math.round(input.durationSeconds)
+  }
+  if (typeof input.volumeMl === 'number' && input.volumeMl > 0) {
+    updates.volumeMl = Math.round(input.volumeMl)
+  }
+  if (input.timestamp) {
+    const timestamp = parseDate(input.timestamp)
+    if (!timestamp) throw new AppError('Valid timestamp is required')
+    updates.timestamp = timestamp
+  }
+
+  const nextPump: PumpEntry = { ...pumps[index], ...updates }
+  pumps[index] = nextPump
+  await setHouseholdData(householdId, 'pumps', sortPumps(pumps))
+  return nextPump
+}
+
+export async function deletePump(householdId: string, id: string) {
+  const pumps = await getHouseholdData(householdId, 'pumps')
+  await setHouseholdData(householdId, 'pumps', pumps.filter(pump => pump.id !== id))
 }
 
 

@@ -22,6 +22,13 @@ export interface NappyEntry {
   notes?: string
 }
 
+export interface PumpEntry {
+  id: string
+  timestamp: Date
+  durationSeconds: number
+  volumeMl: number
+}
+
 export interface DailySummary {
   date: Date
   feedCount: number
@@ -31,6 +38,9 @@ export interface DailySummary {
   totalFormulaMl: number
   totalBreastMinutes: number
   totalBreastMilkMl: number
+  pumpCount: number
+  totalPumpMinutes: number
+  totalPumpMl: number
   nappyCount: number
   wetCount: number
   dirtyCount: number
@@ -50,6 +60,12 @@ export interface IStorage {
   getNappies(since?: Date): Promise<NappyEntry[]>
   updateNappy(id: string, updates: Partial<NappyEntry>): Promise<NappyEntry>
   deleteNappy(id: string): Promise<void>
+
+  // Pumps
+  addPump(pump: Omit<PumpEntry, 'id'>): Promise<PumpEntry>
+  getPumps(since?: Date): Promise<PumpEntry[]>
+  updatePump(id: string, updates: Partial<PumpEntry>): Promise<PumpEntry>
+  deletePump(id: string): Promise<void>
   
   // Summary
   getDailySummary(date: Date): Promise<DailySummary>

@@ -6,10 +6,13 @@ import { parseAppDateTimeLocal } from '@/lib/timezone'
 import {
   addFeed,
   addNappy,
+  addPump,
   deleteFeed,
   deleteNappy,
+  deletePump,
   updateFeed,
   updateNappy,
+  updatePump,
 } from '@/lib/server/tracker'
 import type { FeedType, NappyType } from '@/lib/types'
 
@@ -46,6 +49,16 @@ function getFeedPayload(type: FeedType, formData: FormData) {
   }
 }
 
+function getPumpPayload(formData: FormData) {
+  const durationMinutes = getNumber(formData, 'durationMinutes')
+  const volumeMl = getNumber(formData, 'volumeMl')
+
+  return {
+    durationSeconds: durationMinutes ? Math.round(durationMinutes) * 60 : undefined,
+    volumeMl: volumeMl ? Math.round(volumeMl) : undefined,
+  }
+}
+
 export async function addFeedAction(formData: FormData) {
   const householdId = await requireSessionHouseholdId()
   const type = getString(formData, 'type') as FeedType
@@ -68,6 +81,15 @@ export async function addNappyAction(formData: FormData) {
   revalidateTrackerPages()
 }
 
+export async function addPumpAction(formData: FormData) {
+  const householdId = await requireSessionHouseholdId()
+  await addPump(householdId, {
+    timestamp: getTimestamp(formData),
+    ...getPumpPayload(formData),
+  })
+  revalidateTrackerPages()
+}
+
 export async function updateFeedAction(formData: FormData) {
   const householdId = await requireSessionHouseholdId()
   const type = getString(formData, 'type') as FeedType
@@ -84,6 +106,21 @@ export async function updateFeedAction(formData: FormData) {
 export async function deleteFeedAction(formData: FormData) {
   const householdId = await requireSessionHouseholdId()
   await deleteFeed(householdId, getString(formData, 'id'))
+  revalidateTrackerPages()
+}
+
+export async function updatePumpAction(formData: FormData) {
+  const householdId = await requireSessionHouseholdId()
+  await updatePump(householdId, getString(formData, 'id'), {
+    timestamp: getTimestamp(formData),
+    ...getPumpPayload(formData),
+  })
+  revalidateTrackerPages()
+}
+
+export async function deletePumpAction(formData: FormData) {
+  const householdId = await requireSessionHouseholdId()
+  await deletePump(householdId, getString(formData, 'id'))
   revalidateTrackerPages()
 }
 

@@ -3,6 +3,7 @@ import type {
   FeedEntry,
   IStorage,
   NappyEntry,
+  PumpEntry,
 } from './types'
 
 type Listener = () => void
@@ -22,6 +23,13 @@ function hydrateNappy(nappy: NappyEntry): NappyEntry {
   return {
     ...nappy,
     timestamp: toDate(nappy.timestamp),
+  }
+}
+
+function hydratePump(pump: PumpEntry): PumpEntry {
+  return {
+    ...pump,
+    timestamp: toDate(pump.timestamp),
   }
 }
 
@@ -117,6 +125,35 @@ class ApiStorage implements IStorage {
 
   async deleteNappy(id: string): Promise<void> {
     await fetchJson(`/api/nappies/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    this.notify()
+  }
+
+  async addPump(pump: Omit<PumpEntry, 'id'>): Promise<PumpEntry> {
+    const saved = await fetchJson<PumpEntry>('/api/pumps', {
+      method: 'POST',
+      body: JSON.stringify(pump),
+    })
+    this.notify()
+    return hydratePump(saved)
+  }
+
+  async getPumps(since?: Date): Promise<PumpEntry[]> {
+    const params = since ? `?since=${encodeURIComponent(since.toISOString())}` : ''
+    const pumps = await fetchJson<PumpEntry[]>(`/api/pumps${params}`)
+    return pumps.map(hydratePump)
+  }
+
+  async updatePump(id: string, updates: Partial<PumpEntry>): Promise<PumpEntry> {
+    const saved = await fetchJson<PumpEntry>(`/api/pumps/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    })
+    this.notify()
+    return hydratePump(saved)
+  }
+
+  async deletePump(id: string): Promise<void> {
+    await fetchJson(`/api/pumps/${encodeURIComponent(id)}`, { method: 'DELETE' })
     this.notify()
   }
 

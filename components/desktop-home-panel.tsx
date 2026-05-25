@@ -15,10 +15,13 @@ import { Check, Droplets, Pencil, Trash2, X } from 'lucide-react'
 import {
   addFeedAction,
   addNappyAction,
+  addPumpAction,
   deleteFeedAction,
   deleteNappyAction,
+  deletePumpAction,
   updateFeedAction,
   updateNappyAction,
+  updatePumpAction,
 } from '@/app/actions/tracker'
 import {
   AlertDialog,
@@ -34,7 +37,7 @@ import {
 import { formatAppDateTimeLocal, formatAppTime } from '@/lib/timezone'
 import type { AnalyticsDataPoint } from '@/lib/server/analytics-data'
 import type { HistoryItem } from '@/lib/server/history-data'
-import type { DailySummary, FeedEntry, NappyEntry } from '@/lib/types'
+import type { DailySummary, FeedEntry, NappyEntry, PumpEntry } from '@/lib/types'
 
 const BREAST_PRESETS = [5, 10, 15, 20, 25, 30]
 const BOTTLE_PRESETS = [30, 60, 90, 120, 150, 180]
@@ -73,7 +76,7 @@ function feedKind(feed: FeedEntry): FeedKind {
 }
 
 function feedLabel(kind: FeedKind) {
-  if (kind === 'expressed') return 'Pumped milk'
+  if (kind === 'expressed') return 'Expressed feed'
   if (kind === 'breast') return 'Breast feed'
   return 'Formula'
 }
@@ -86,6 +89,10 @@ function feedAmount(feed: FeedEntry) {
 
 function nappyLabel(nappy: NappyEntry) {
   return nappy.type === 'both' ? 'Wet + dirty' : nappy.type
+}
+
+function pumpDetail(pump: PumpEntry) {
+  return `${Math.round((pump.durationSeconds || 0) / 60)}m · ${pump.volumeMl || 0}ml`
 }
 
 function tone(kind: FeedKind | NappyEntry['type']) {
@@ -211,14 +218,80 @@ function FeedLogSection({
   )
 }
 
+function PumpLogSection({
+  disabled,
+  timestamp,
+  onLog,
+}: {
+  disabled: boolean
+  timestamp: string
+  onLog: (durationMinutes: number, volumeMl: number) => void
+}) {
+  const [durationMinutes, setDurationMinutes] = useState('20')
+  const [volumeMl, setVolumeMl] = useState('90')
+  const durationValue = Number(durationMinutes)
+  const volumeValue = Number(volumeMl)
+  const canLog = Number.isFinite(durationValue) && durationValue > 0 && Number.isFinite(volumeValue) && volumeValue > 0 && Boolean(timestamp) && !disabled
+
+  return (
+    <div className="rounded-lg border border-muted/60 bg-muted/15 p-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-emerald-400">Pump</h3>
+          <p className="text-xs text-muted-foreground">Total time and volume</p>
+        </div>
+        <span className="text-xs font-medium text-muted-foreground">min + ml</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="relative">
+          <input
+            type="number"
+            min="1"
+            step="1"
+            inputMode="numeric"
+            value={durationMinutes}
+            onChange={(event) => setDurationMinutes(event.target.value)}
+            disabled={disabled}
+            className="h-10 w-full rounded-lg border border-border bg-background px-3 pr-12 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-45"
+          />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">min</span>
+        </div>
+        <div className="relative">
+          <input
+            type="number"
+            min="1"
+            step="1"
+            inputMode="numeric"
+            value={volumeMl}
+            onChange={(event) => setVolumeMl(event.target.value)}
+            disabled={disabled}
+            className="h-10 w-full rounded-lg border border-border bg-background px-3 pr-10 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-45"
+          />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">ml</span>
+        </div>
+      </div>
+      <button
+        type="button"
+        disabled={!canLog}
+        onClick={() => onLog(durationValue, volumeValue)}
+        className="mt-3 h-10 w-full rounded-lg bg-emerald-500 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-45"
+      >
+        Log pump
+      </button>
+    </div>
+  )
+}
+
 function DesktopQuickLog({
   pending,
   onLogFeed,
   onLogNappy,
+  onLogPump,
 }: {
   pending: boolean
   onLogFeed: (kind: FeedKind, amount: number, timestamp: string) => void
   onLogNappy: (type: NappyEntry['type'], timestamp: string) => void
+  onLogPump: (durationMinutes: number, volumeMl: number, timestamp: string) => void
 }) {
   const [timestamp, setTimestamp] = useState(() => formatAppDateTimeLocal(new Date()))
 
@@ -241,7 +314,7 @@ function DesktopQuickLog({
         </label>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
         <FeedLogSection
           title="Breast"
           helper="Duration"
@@ -253,8 +326,8 @@ function DesktopQuickLog({
           onLog={(value) => onLogFeed('breast', value, timestamp)}
         />
         <FeedLogSection
-          title="Pumped"
-          helper="Expressed milk"
+          title="Milk"
+          helper="Expressed feed"
           accent="text-cyan-400"
           presets={BOTTLE_PRESETS}
           unit="ml"
@@ -272,6 +345,7 @@ function DesktopQuickLog({
           disabled={pending}
           onLog={(value) => onLogFeed('formula', value, timestamp)}
         />
+        <PumpLogSection disabled={pending} timestamp={timestamp} onLog={(duration, volume) => onLogPump(duration, volume, timestamp)} />
       </div>
 
       <div className="mt-3 rounded-lg border border-muted/60 bg-muted/15 p-3">
@@ -324,9 +398,10 @@ function CompactAnalytics({ data }: { data: AnalyticsDataPoint[] }) {
       sessions: sum.sessions + day.feedSessionCount,
       formulaMl: sum.formulaMl + day.formulaMl,
       breastMins: sum.breastMins + day.breastMins,
+      pumpMl: sum.pumpMl + day.pumpMl,
       nappies: sum.nappies + day.totalNappies,
     }),
-    { sessions: 0, formulaMl: 0, breastMins: 0, nappies: 0 },
+    { sessions: 0, formulaMl: 0, breastMins: 0, pumpMl: 0, nappies: 0 },
   )
 
   return (
@@ -345,6 +420,7 @@ function CompactAnalytics({ data }: { data: AnalyticsDataPoint[] }) {
         <SummaryTile label="Nappies" value={String(totals.nappies)} className="text-violet-400" />
         <SummaryTile label="Formula" value={`${totals.formulaMl}ml`} className="text-amber-400" />
         <SummaryTile label="Breast" value={`${totals.breastMins}m`} className="text-sky-400" />
+        <SummaryTile label="Pumped" value={`${totals.pumpMl}ml`} className="text-emerald-400" />
       </div>
       <div className="mt-4 h-52 rounded-lg border border-muted/50 bg-background/40 p-3">
         <ResponsiveContainer width="100%" height="100%">
@@ -505,6 +581,70 @@ function NappyActivityRow({ nappy, onChanged }: { nappy: NappyEntry; onChanged: 
   )
 }
 
+function PumpActivityRow({ pump, onChanged }: { pump: PumpEntry; onChanged: () => void }) {
+  const [editing, setEditing] = useState(false)
+  const [durationMinutes, setDurationMinutes] = useState(String(Math.round((pump.durationSeconds || 0) / 60)))
+  const [volumeMl, setVolumeMl] = useState(String(pump.volumeMl || 0))
+  const [timestamp, setTimestamp] = useState(formatAppDateTimeLocal(pump.timestamp))
+  const [pending, startTransition] = useTransition()
+  const durationValue = Number(durationMinutes)
+  const volumeValue = Number(volumeMl)
+  const canSave = Number.isFinite(durationValue) && durationValue > 0 && Number.isFinite(volumeValue) && volumeValue > 0 && Boolean(timestamp)
+
+  function save() {
+    if (!canSave) return
+    const formData = new FormData()
+    formData.set('id', pump.id)
+    formData.set('durationMinutes', String(Math.round(durationValue)))
+    formData.set('volumeMl', String(Math.round(volumeValue)))
+    formData.set('timestamp', timestamp)
+    startTransition(async () => {
+      await updatePumpAction(formData)
+      setEditing(false)
+      onChanged()
+    })
+  }
+
+  if (editing) {
+    return (
+      <div className="grid grid-cols-[82px_1fr_130px_112px] items-center gap-3 border-b border-muted/40 py-2 text-sm last:border-0">
+        <input type="datetime-local" value={timestamp} onChange={(event) => setTimestamp(event.target.value)} disabled={pending} className="col-span-2 h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground" />
+        <div className="grid grid-cols-2 gap-1">
+          <input type="number" value={durationMinutes} onChange={(event) => setDurationMinutes(event.target.value)} disabled={pending} className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground" />
+          <input type="number" value={volumeMl} onChange={(event) => setVolumeMl(event.target.value)} disabled={pending} className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground" />
+        </div>
+        <div className="flex justify-end gap-1">
+          <button type="button" onClick={() => setEditing(false)} disabled={pending} className="grid h-9 w-9 place-items-center rounded-lg bg-muted text-muted-foreground" aria-label="Cancel edit">
+            <X className="h-4 w-4" />
+          </button>
+          <button type="button" onClick={save} disabled={!canSave || pending} className="grid h-9 w-9 place-items-center rounded-lg bg-emerald-500 text-white disabled:opacity-45" aria-label="Save pump">
+            <Check className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid grid-cols-[82px_1fr_130px_112px] items-center gap-3 border-b border-muted/40 py-2 text-sm last:border-0">
+      <span className="text-xs tabular-nums text-muted-foreground">{formatAppTime(pump.timestamp)}</span>
+      <span className="min-w-0 truncate font-medium text-foreground">Pump session</span>
+      <span className="text-right font-semibold tabular-nums text-emerald-400">{pumpDetail(pump)}</span>
+      <div className="flex justify-end gap-1">
+        <button type="button" onClick={() => setEditing(true)} className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Edit pump">
+          <Pencil className="h-4 w-4" />
+        </button>
+        <form action={deletePumpAction}>
+          <input type="hidden" name="id" value={pump.id} />
+          <button type="submit" className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-red-500/10 hover:text-red-400" aria-label="Delete pump">
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 function RecentActivity({ items, onChanged }: { items: HistoryItem[]; onChanged: () => void }) {
   return (
     <section className="rounded-xl border border-muted bg-muted/10 p-4">
@@ -529,7 +669,9 @@ function RecentActivity({ items, onChanged }: { items: HistoryItem[]; onChanged:
         ) : (
           items.map(item => item.type === 'feed'
             ? <FeedActivityRow key={item.id} feed={item.data as FeedEntry} onChanged={onChanged} />
-            : <NappyActivityRow key={item.id} nappy={item.data as NappyEntry} onChanged={onChanged} />
+            : item.type === 'nappy'
+              ? <NappyActivityRow key={item.id} nappy={item.data as NappyEntry} onChanged={onChanged} />
+              : <PumpActivityRow key={item.id} pump={item.data as PumpEntry} onChanged={onChanged} />
           )
         )}
       </div>
@@ -546,6 +688,7 @@ export function DesktopHomePanel({
   overview: {
     lastFeed: FeedEntry | null
     lastNappy: NappyEntry | null
+    lastPump: PumpEntry | null
     summary: DailySummary
   }
   history: {
@@ -605,13 +748,34 @@ export function DesktopHomePanel({
     })
   }
 
+  function logPump(durationMinutes: number, volumeMl: number, timestamp: string) {
+    const roundedDuration = Math.round(durationMinutes)
+    const roundedVolume = Math.round(volumeMl)
+    const formData = new FormData()
+    formData.set('durationMinutes', String(roundedDuration))
+    formData.set('volumeMl', String(roundedVolume))
+    formData.set('timestamp', timestamp)
+    setPendingKey(`pump-${roundedDuration}-${roundedVolume}`)
+    startTransition(async () => {
+      try {
+        await addPumpAction(formData)
+        setMessage(`Pump session logged: ${roundedDuration}m · ${roundedVolume}ml`)
+        refresh()
+      } finally {
+        setPendingKey(null)
+      }
+    })
+  }
+
   return (
     <div className="hidden min-h-[calc(100vh-11rem)] gap-4 lg:grid">
-      <section className="grid grid-cols-4 gap-3">
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-6">
         <StatTile label="Since feed" value={formatTimeSince(overview.lastFeed?.timestamp ?? null, now)} helper={nextFeed || undefined} />
         <StatTile label="Since nappy" value={formatTimeSince(overview.lastNappy?.timestamp ?? null, now)} helper={overview.lastNappy ? `${nappyLabel(overview.lastNappy)} nappy` : undefined} />
+        <StatTile label="Since pump" value={formatTimeSince(overview.lastPump?.timestamp ?? null, now)} helper={overview.lastPump ? pumpDetail(overview.lastPump) : undefined} />
         <StatTile label="Today feeds" value={String(todaySummary.feedSessionCount)} helper={`${todaySummary.feedCount} feed entries`} />
         <StatTile label="Today nappies" value={String(todaySummary.nappyCount)} helper={`${todaySummary.wetCount} wet, ${todaySummary.dirtyCount} dirty`} />
+        <StatTile label="Today pump" value={`${todaySummary.totalPumpMl}ml`} helper={`${todaySummary.pumpCount} sessions, ${todaySummary.totalPumpMinutes}m`} />
       </section>
 
       {message && (
@@ -624,7 +788,7 @@ export function DesktopHomePanel({
       )}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <DesktopQuickLog pending={isLogging} onLogFeed={logFeed} onLogNappy={logNappy} />
+        <DesktopQuickLog pending={isLogging} onLogFeed={logFeed} onLogNappy={logNappy} onLogPump={logPump} />
         <CompactAnalytics data={analytics.data} />
       </div>
 
