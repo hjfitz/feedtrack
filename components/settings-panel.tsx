@@ -1,8 +1,8 @@
 'use client'
 
 import { useActionState, useEffect, useRef, useState } from 'react'
-import { Baby, Copy, LockKeyhole, LogOut, RefreshCw } from 'lucide-react'
-import { changePasswordAction, generateInviteAction, logoutAction, updateBabyDetailsAction } from '@/app/actions/auth'
+import { Baby, Copy, KeyRound, LockKeyhole, LogOut, RefreshCw } from 'lucide-react'
+import { changePasswordAction, createHouseholdAccountAction, generateInviteAction, joinWithCodeAction, logoutAction, updateBabyDetailsAction } from '@/app/actions/auth'
 
 function BabyDetailsForm({
   babyName,
@@ -91,6 +91,60 @@ function ChangePasswordForm() {
   )
 }
 
+function JoinDifferentHouseholdForm() {
+  const [state, action] = useActionState(joinWithCodeAction, { error: '' })
+
+  return (
+    <form action={action} className="mt-4 flex flex-col gap-3">
+      {state.error && <div className="rounded-xl bg-red-500/15 border border-red-500/30 px-4 py-3 text-red-400 text-sm">{state.error}</div>}
+      <div className="flex flex-col gap-2">
+        <label htmlFor="switch-invite-code" className="text-sm text-muted-foreground">Invite code</label>
+        <input id="switch-invite-code" name="inviteCode" type="text" autoComplete="off" autoCapitalize="characters" maxLength={8} className="h-12 rounded-xl bg-background border border-border px-4 text-foreground font-mono tracking-widest placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50" placeholder="ABCD1234" required />
+      </div>
+      <button type="submit" className="h-12 w-full rounded-xl bg-muted border border-border text-foreground font-medium flex items-center justify-center gap-2 hover:bg-muted/80 active:scale-[0.98] transition-all">
+        <KeyRound className="h-4 w-4" aria-hidden="true" />
+        Join different household
+      </button>
+    </form>
+  )
+}
+
+function CreateHouseholdAccountForm() {
+  const formRef = useRef<HTMLFormElement>(null)
+  const [state, action] = useActionState(createHouseholdAccountAction, { error: '' })
+
+  useEffect(() => {
+    if (state.success) {
+      formRef.current?.reset()
+    }
+  }, [state.success])
+
+  return (
+    <form ref={formRef} action={action} className="mt-4 flex flex-col gap-3">
+      {state.error && <div className="rounded-xl bg-red-500/15 border border-red-500/30 px-4 py-3 text-red-400 text-sm">{state.error}</div>}
+      {state.success && <div className="rounded-xl bg-sky-500/15 border border-sky-500/30 px-4 py-3 text-sky-400 text-sm">{state.success}</div>}
+      <div className="flex flex-col gap-2">
+        <label htmlFor="create-account-username" className="text-sm text-muted-foreground">Username</label>
+        <input id="create-account-username" name="username" type="text" autoComplete="username" autoCapitalize="off" className="h-12 rounded-xl bg-background border border-border px-4 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50" required minLength={3} />
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="flex flex-col gap-2">
+          <label htmlFor="create-account-password" className="text-sm text-muted-foreground">Password</label>
+          <input id="create-account-password" name="password" type="password" autoComplete="new-password" className="h-12 rounded-xl bg-background border border-border px-4 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50" required minLength={6} />
+        </div>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="create-account-confirm-password" className="text-sm text-muted-foreground">Confirm password</label>
+          <input id="create-account-confirm-password" name="confirmPassword" type="password" autoComplete="new-password" className="h-12 rounded-xl bg-background border border-border px-4 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50" required minLength={6} />
+        </div>
+      </div>
+      <button type="submit" className="h-12 w-full rounded-xl bg-sky-500 text-white font-medium flex items-center justify-center gap-2 hover:bg-sky-400 active:scale-[0.98] transition-all">
+        <LockKeyhole className="h-4 w-4" aria-hidden="true" />
+        Create sign-in account
+      </button>
+    </form>
+  )
+}
+
 export function SettingsPanel({
   inviteCode,
   babyName,
@@ -126,7 +180,7 @@ export function SettingsPanel({
         <div className="mb-4">
           <h2 className="text-lg font-semibold text-foreground">Household invite</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Share this code with another caregiver so they can create an account in this household.
+            Share this code with another caregiver so they can join this household or create an account.
           </p>
         </div>
 
@@ -153,7 +207,15 @@ export function SettingsPanel({
         <h2 className="text-lg font-semibold text-foreground">Account</h2>
         <p className="text-sm text-muted-foreground mt-1">Signed in</p>
 
+        <CreateHouseholdAccountForm />
+
         <ChangePasswordForm />
+
+        <div className="mt-6 border-t border-muted/60 pt-4">
+          <h3 className="text-base font-semibold text-foreground">Join another household</h3>
+          <p className="text-sm text-muted-foreground mt-1">Entering a valid code will switch this browser to that household.</p>
+          <JoinDifferentHouseholdForm />
+        </div>
 
         <form action={logoutAction}>
           <button type="submit" className="mt-4 h-12 w-full rounded-xl border border-border text-muted-foreground font-medium flex items-center justify-center gap-2 hover:text-red-400 hover:border-red-500/40 active:scale-[0.98] transition-all">

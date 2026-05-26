@@ -341,6 +341,45 @@ export async function signupUser(usernameInput: string, password: string, invite
   return { householdId, inviteCode }
 }
 
+export async function createUserForHousehold(householdId: string, usernameInput: string, password: string) {
+  const username = normalizeUsername(usernameInput)
+
+  if (username.length < 3) throw new AppError('Username must be at least 3 characters')
+  if (password.length < 6) throw new AppError('Password must be at least 6 characters')
+  if (await getUser(username)) throw new AppError('Username already taken', 409)
+
+  const meta = await getHouseholdMeta(householdId)
+  const inviteCode = meta?.inviteCode || await createUniqueInviteCode()
+
+  if (!meta?.inviteCode) {
+    await Promise.all([
+      setInvite(inviteCode, { householdId }),
+      setHouseholdMeta(householdId, { ...meta, inviteCode }),
+    ])
+  }
+
+  const hash = await bcrypt.hash(password, 12)
+  await setUser(username, { id: householdId, hash, inviteCode })
+  return { householdId, inviteCode }
+}
+
+export async function joinHouseholdWithInvite(inviteCodeInput: string) {
+  const inviteCode = normalizeInviteCode(inviteCodeInput)
+
+  if (inviteCode.length !== 8) {
+    throw new AppError('Invite code must be 8 characters')
+  }
+
+  const invite = await getInvite(inviteCode)
+  if (!invite) throw new AppError('Invalid invite code', 404)
+
+  const meta = await getHouseholdMeta(invite.householdId)
+  return {
+    householdId: invite.householdId,
+    inviteCode: meta?.inviteCode || inviteCode,
+  }
+}
+
 export async function loginUser(usernameInput: string, password: string) {
   const username = normalizeUsername(usernameInput)
   if (!username || !password) throw new AppError('Username and password are required')
@@ -389,7 +428,7 @@ export async function generateInviteCode(householdId: string) {
   await Promise.all([
     meta?.inviteCode ? deleteInvite(meta.inviteCode) : Promise.resolve(),
     setInvite(inviteCode, { householdId }),
-    setHouseholdMeta(householdId, { inviteCode }),
+    setHouseholdMeta(householdId, { ...meta, inviteCode }),
   ])
 
   return inviteCode

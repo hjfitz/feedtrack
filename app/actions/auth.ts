@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { clearSessionCookie, requireSessionHouseholdId, setSessionCookie } from '@/lib/server/auth'
 import { getHouseholdMeta, setHouseholdMeta } from '@/lib/server/blob-storage'
-import { AppError, changePassword, generateInviteCode, loginUser, signupUser } from '@/lib/server/tracker'
+import { AppError, changePassword, createUserForHousehold, generateInviteCode, joinHouseholdWithInvite, loginUser, signupUser } from '@/lib/server/tracker'
 
 export interface AuthFormState {
   error: string
@@ -47,6 +47,35 @@ export async function signupAction(_state: AuthFormState, formData: FormData): P
   }
 
   redirect('/')
+}
+
+export async function joinWithCodeAction(_state: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  try {
+    const result = await joinHouseholdWithInvite(getString(formData, 'inviteCode'))
+    await setSessionCookie(result.householdId)
+  } catch (error) {
+    return formError(error)
+  }
+
+  redirect('/')
+}
+
+export async function createHouseholdAccountAction(_state: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  const password = getString(formData, 'password')
+  const confirmPassword = getString(formData, 'confirmPassword')
+
+  try {
+    if (password !== confirmPassword) {
+      throw new AppError('Passwords do not match')
+    }
+
+    const householdId = await requireSessionHouseholdId()
+    await createUserForHousehold(householdId, getString(formData, 'username'), password)
+  } catch (error) {
+    return formError(error)
+  }
+
+  return { error: '', success: 'Account created for this household' }
 }
 
 export async function logoutAction() {

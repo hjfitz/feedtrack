@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useActionState } from 'react'
-import { loginAction, signupAction } from '@/app/actions/auth'
+import { joinWithCodeAction, loginAction, signupAction } from '@/app/actions/auth'
 
 function SubmitButton({ children }: { children: React.ReactNode }) {
   return (
@@ -27,6 +27,23 @@ export function LoginForm() {
         <input id="password" name="password" type="password" autoComplete="current-password" className="h-14 rounded-xl bg-muted/50 border border-muted px-4 text-lg text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50 transition-all" placeholder="Enter password" required />
       </div>
       <SubmitButton>Sign in</SubmitButton>
+    </form>
+  )
+}
+
+export function JoinCodeForm() {
+  const [state, action] = useActionState(joinWithCodeAction, { error: '' })
+
+  return (
+    <form action={action} className="flex flex-col gap-4 rounded-xl border border-muted bg-muted/30 p-4">
+      {state.error && <div className="rounded-xl bg-red-500/15 border border-red-500/30 px-4 py-3 text-red-400 text-sm">{state.error}</div>}
+      <div className="flex flex-col gap-2">
+        <label htmlFor="join-invite-code" className="text-sm text-muted-foreground">Invite code</label>
+        <input id="join-invite-code" name="inviteCode" type="text" autoComplete="off" autoCapitalize="characters" className="h-12 rounded-xl bg-background border border-border px-4 text-lg text-foreground font-mono tracking-widest placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50 transition-all" placeholder="ABCD1234" maxLength={8} required />
+      </div>
+      <button type="submit" className="h-12 rounded-xl bg-muted border border-border text-foreground font-medium hover:bg-muted/80 active:scale-[0.98] transition-all">
+        Join with code
+      </button>
     </form>
   )
 }

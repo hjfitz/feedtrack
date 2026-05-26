@@ -1,5 +1,9 @@
-const CACHE_NAME = 'feedtrack-static-v1'
+const CACHE_NAME = 'feedtrack-static-v2'
+const NAVIGATION_TIMEOUT_MS = 900
+const NAVIGATION_RETRY_WINDOW_MS = 10000
+const navigationFallbacks = new Map()
 const STATIC_PATHS = [
+  '/app-shell.html',
   '/apple-icon.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -29,7 +33,14 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url)
   if (url.origin !== self.location.origin) return
 
-  if (url.pathname.startsWith('/api/') || request.mode === 'navigate') {
+  if (url.pathname.startsWith('/api/')) {
+    return
+  }
+
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      respondToNavigation(request),
+    )
     return
   }
 
@@ -46,3 +57,29 @@ self.addEventListener('fetch', event => {
     )
   }
 })
+
+function respondToNavigation(request) {
+  const fallbackAt = navigationFallbacks.get(request.url)
+
+  if (fallbackAt && Date.now() - fallbackAt < NAVIGATION_RETRY_WINDOW_MS) {
+    navigationFallbacks.delete(request.url)
+    return fetch(request).catch(() => caches.match('/app-shell.html'))
+  }
+
+  const network = fetch(request)
+  const fallback = new Promise(resolve => {
+    setTimeout(() => {
+      caches.match('/app-shell.html').then(response => {
+        if (response) {
+          navigationFallbacks.set(request.url, Date.now())
+        }
+
+        resolve(response)
+      })
+    }, NAVIGATION_TIMEOUT_MS)
+  })
+
+  return Promise.race([network, fallback])
+    .then(response => response || network)
+    .catch(() => caches.match('/app-shell.html'))
+}

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { AuthLink, LoginForm } from '@/components/auth-form'
+import { AuthLink, JoinCodeForm, LoginForm } from '@/components/auth-form'
 import { getSessionHouseholdId } from '@/lib/server/auth'
 
 export default async function LoginPage() {
@@ -15,6 +15,12 @@ export default async function LoginPage() {
           <p className="text-muted-foreground">Sign in to continue tracking</p>
         </div>
         <LoginForm />
+        <div className="my-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs uppercase tracking-wide text-muted-foreground">or</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+        <JoinCodeForm />
         <div className="mt-8 flex flex-col gap-4 text-center">
           <AuthLink href="/signup">Create an account</AuthLink>
         </div>
