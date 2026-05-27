@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ResponsiveContainer,
@@ -59,15 +59,35 @@ function formatSummaryMinutes(minutes: number): string {
   return mins ? `${hours}h ${mins}m` : `${hours}h`
 }
 
-function nextFeedEstimate(lastFeed: FeedEntry | null, feedingIntervalMinutes: number | undefined, now: Date) {
-  if (!lastFeed || !feedingIntervalMinutes) return ''
+function feedDueInfo(lastFeed: FeedEntry | null, feedingIntervalMinutes: number | undefined, now: Date) {
+  if (!lastFeed || !feedingIntervalMinutes) return null
   const lastFeedTime = new Date(lastFeed.timestamp).getTime()
-  if (!Number.isFinite(lastFeedTime)) return ''
+  if (!Number.isFinite(lastFeedTime)) return null
 
-  const minutesUntil = Math.round((lastFeedTime + feedingIntervalMinutes * 60000 - now.getTime()) / 60000)
-  if (minutesUntil < 0) return `Overdue by ${formatSummaryMinutes(Math.abs(minutesUntil))}`
-  if (minutesUntil <= 30) return `Due soon, about ${formatSummaryMinutes(minutesUntil)}`
-  return `Next feed in about ${formatSummaryMinutes(minutesUntil)}`
+  const dueAt = new Date(lastFeedTime + feedingIntervalMinutes * 60000)
+  const minutesUntil = Math.ceil((dueAt.getTime() - now.getTime()) / 60000)
+
+  if (minutesUntil < 0) {
+    return {
+      status: 'overdue' as const,
+      value: `${formatSummaryMinutes(Math.abs(minutesUntil))} late`,
+      helper: `Due ${formatAppTime(dueAt)}`,
+    }
+  }
+
+  if (minutesUntil === 0) {
+    return {
+      status: 'due' as const,
+      value: 'Due now',
+      helper: `Due ${formatAppTime(dueAt)}`,
+    }
+  }
+
+  return {
+    status: minutesUntil <= 30 ? 'soon' as const : 'later' as const,
+    value: `${formatSummaryMinutes(minutesUntil)} left`,
+    helper: `Due ${formatAppTime(dueAt)}`,
+  }
 }
 
 function feedKind(feed: FeedEntry): FeedKind {
@@ -104,9 +124,17 @@ function tone(kind: FeedKind | NappyEntry['type']) {
   return 'text-violet-400'
 }
 
-function StatTile({ label, value, helper }: { label: string; value: string; helper?: string }) {
+function StatTile({ label, value, helper, emphasis = 'default' }: { label: string; value: string; helper?: string; emphasis?: 'default' | 'soon' | 'due' | 'overdue' }) {
+  const toneClass = emphasis === 'overdue'
+    ? 'border-red-500/45 bg-red-500/15'
+    : emphasis === 'due'
+      ? 'border-orange-500/45 bg-orange-500/15'
+      : emphasis === 'soon'
+        ? 'border-amber-500/40 bg-amber-500/10'
+        : 'border-muted/60 bg-muted/20'
+
   return (
-    <div className="min-w-0 rounded-lg border border-muted/60 bg-muted/20 px-4 py-3">
+    <div className={`min-w-0 rounded-lg border px-4 py-3 transition-colors ${toneClass}`}>
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="mt-1 whitespace-nowrap text-2xl font-semibold tabular-nums text-foreground">{value}</p>
       {helper && <p className="mt-1 truncate text-xs text-muted-foreground">{helper}</p>}
@@ -713,10 +741,15 @@ export function DesktopHomePanel({
   const router = useRouter()
   const [pendingKey, setPendingKey] = useState<string | null>(null)
   const [message, setMessage] = useState('')
-  const [now] = useState(() => new Date())
+  const [now, setNow] = useState(() => new Date())
   const [isPending, startTransition] = useTransition()
   const isLogging = isPending || pendingKey !== null
-  const nextFeed = nextFeedEstimate(overview.lastFeed, feedingIntervalMinutes, now)
+  const nextFeed = feedDueInfo(overview.lastFeed, feedingIntervalMinutes, now)
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   const todaySummary = useMemo(() => overview.summary, [overview.summary])
 
@@ -781,7 +814,12 @@ export function DesktopHomePanel({
   return (
     <div className="hidden min-h-[calc(100vh-11rem)] gap-4 lg:grid">
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-6">
-        <StatTile label="Since feed" value={formatTimeSince(overview.lastFeed?.timestamp ?? null, now)} helper={nextFeed || undefined} />
+        <StatTile
+          label="Next feed"
+          value={nextFeed?.value ?? formatTimeSince(overview.lastFeed?.timestamp ?? null, now)}
+          helper={nextFeed?.helper}
+          emphasis={nextFeed?.status === 'later' ? 'default' : nextFeed?.status}
+        />
         <StatTile label="Since nappy" value={formatTimeSince(overview.lastNappy?.timestamp ?? null, now)} helper={overview.lastNappy ? `${nappyLabel(overview.lastNappy)} nappy` : undefined} />
         <StatTile label="Since pump" value={formatTimeSince(overview.lastPump?.timestamp ?? null, now)} helper={overview.lastPump ? pumpDetail(overview.lastPump) : undefined} />
         <StatTile label="Today feeds" value={String(todaySummary.feedSessionCount)} helper={`${todaySummary.feedCount} feed entries`} />

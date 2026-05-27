@@ -150,11 +150,13 @@ export function SettingsPanel({
   babyName,
   babyDob,
   feedingIntervalMinutes,
+  hasSignInAccount,
 }: {
   inviteCode: string | null
   babyName: string
   babyDob: string
   feedingIntervalMinutes: number | ''
+  hasSignInAccount: boolean
 }) {
   const [copied, setCopied] = useState(false)
 
@@ -207,7 +209,7 @@ export function SettingsPanel({
         <h2 className="text-lg font-semibold text-foreground">Account</h2>
         <p className="text-sm text-muted-foreground mt-1">Signed in</p>
 
-        <CreateHouseholdAccountForm />
+        {!hasSignInAccount && <CreateHouseholdAccountForm />}
 
         <ChangePasswordForm />
 

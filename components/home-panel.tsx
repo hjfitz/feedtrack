@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { formatAppDateTimeLocal } from '@/lib/timezone'
+import { formatAppDateTimeLocal, formatAppTime } from '@/lib/timezone'
 import type { DailySummary, FeedEntry, NappyEntry, PumpEntry } from '@/lib/types'
 
 function formatTimeSince(date: Date | null, now: Date): string {
@@ -31,16 +31,37 @@ function formatSummaryMinutes(minutes: number): string {
   return mins ? `${hours}h ${mins}m` : `${hours}h`
 }
 
-function nextFeedEstimate(lastFeed: FeedEntry | null, feedingIntervalMinutes: number | undefined, now: Date) {
-  if (!lastFeed || !feedingIntervalMinutes) return ''
+function feedDueInfo(lastFeed: FeedEntry | null, feedingIntervalMinutes: number | undefined, now: Date) {
+  if (!lastFeed || !feedingIntervalMinutes) return null
 
   const lastFeedTime = new Date(lastFeed.timestamp).getTime()
-  if (!Number.isFinite(lastFeedTime)) return ''
+  if (!Number.isFinite(lastFeedTime)) return null
 
-  const minutesUntil = Math.round((lastFeedTime + feedingIntervalMinutes * 60000 - now.getTime()) / 60000)
-  if (minutesUntil < 0) return `overdue · ${formatSummaryMinutes(Math.abs(minutesUntil))} ago`
-  if (minutesUntil <= 30) return `due soon · ~${formatSummaryMinutes(minutesUntil)}`
-  return `next feed ~${formatSummaryMinutes(minutesUntil)}`
+  const dueAt = new Date(lastFeedTime + feedingIntervalMinutes * 60000)
+  const minutesUntil = Math.ceil((dueAt.getTime() - now.getTime()) / 60000)
+  const absMinutes = Math.abs(minutesUntil)
+
+  if (minutesUntil < 0) {
+    return {
+      status: 'overdue' as const,
+      countdown: `${formatSummaryMinutes(absMinutes)} late`,
+      dueLabel: `Due ${formatAppTime(dueAt)}`,
+    }
+  }
+
+  if (minutesUntil === 0) {
+    return {
+      status: 'due' as const,
+      countdown: 'Due now',
+      dueLabel: `Due ${formatAppTime(dueAt)}`,
+    }
+  }
+
+  return {
+    status: minutesUntil <= 30 ? 'soon' as const : 'later' as const,
+    countdown: `${formatSummaryMinutes(minutesUntil)} left`,
+    dueLabel: `Due ${formatAppTime(dueAt)}`,
+  }
 }
 
 const BREAST_PRESETS = [5, 10, 15, 20, 25, 30]
@@ -118,7 +139,21 @@ export function HomePanel({
   const hasPumpVolume = pumpMl.trim() !== ''
   const canLogPump = Number.isFinite(pumpMinutesValue) && pumpMinutesValue > 0 && (!hasPumpVolume || (Number.isFinite(pumpMlValue) && pumpMlValue > 0)) && Boolean(pumpTimestamp)
   const canLogNappy = Boolean(nappyType && nappyTimestamp)
-  const nextFeedText = nextFeedEstimate(lastFeed, feedingIntervalMinutes, now)
+  const nextFeed = feedDueInfo(lastFeed, feedingIntervalMinutes, now)
+  const feedCardClass = nextFeed?.status === 'overdue'
+    ? 'border-red-500/45 bg-red-500/15 shadow-[0_0_0_1px_rgba(239,68,68,0.15)]'
+    : nextFeed?.status === 'due'
+      ? 'border-orange-500/45 bg-orange-500/15 shadow-[0_0_0_1px_rgba(249,115,22,0.14)]'
+      : nextFeed?.status === 'soon'
+        ? 'border-amber-500/40 bg-amber-500/10'
+        : 'border-sky-500/20 bg-sky-500/10'
+  const feedLabelClass = nextFeed?.status === 'overdue'
+    ? 'text-red-300'
+    : nextFeed?.status === 'due'
+      ? 'text-orange-300'
+      : nextFeed?.status === 'soon'
+        ? 'text-amber-300'
+        : 'text-sky-300'
 
   const ConfirmationToast = () => {
     if (!confirmation) return null
@@ -379,11 +414,11 @@ export function HomePanel({
     return (
       <div className="flex flex-col gap-6">
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <div className="min-w-0 rounded-2xl bg-sky-500/10 p-3 text-center border border-sky-500/20 sm:p-4">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-sky-300 sm:text-xs">Feed</p>
-            <p className="whitespace-nowrap text-xl font-bold text-foreground tabular-nums sm:text-3xl">{formatTimeSince(lastFeed?.timestamp ?? null, now)}</p>
-            {lastFeed && <p className="mt-1 truncate text-[11px] text-muted-foreground sm:text-sm">{formatFeedDetail(lastFeed)}</p>}
-            {nextFeedText && <p className="mt-1 line-clamp-2 text-[10px] leading-tight text-muted-foreground/80 sm:text-xs">{nextFeedText}</p>}
+          <div className={`min-w-0 rounded-2xl p-3 text-center border transition-colors sm:p-4 ${feedCardClass}`}>
+            <p className={`mb-1 text-[10px] font-semibold uppercase tracking-wide sm:text-xs ${feedLabelClass}`}>Feed</p>
+            <p className="whitespace-nowrap text-lg font-bold text-foreground tabular-nums sm:text-3xl">{nextFeed?.countdown ?? formatTimeSince(lastFeed?.timestamp ?? null, now)}</p>
+            {nextFeed && <p className={`mt-1 truncate text-[11px] font-semibold sm:text-sm ${feedLabelClass}`}>{nextFeed.dueLabel}</p>}
+            {lastFeed && <p className="mt-1 truncate text-[10px] text-muted-foreground sm:text-xs">Last {formatFeedDetail(lastFeed)}</p>}
           </div>
           <div className="min-w-0 rounded-2xl bg-violet-500/10 p-3 text-center border border-violet-500/20 sm:p-4">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-violet-300 sm:text-xs">Nappy</p>
@@ -486,7 +521,7 @@ export function HomePanel({
         </div>
       </div>
     )
-  }, [canLogCustomBreast, canLogCustomExpressed, canLogCustomFormula, canLogPump, customBreastMinutes, customBreastValue, customExpressedMl, customExpressedValue, customFormulaMl, customFormulaValue, feedTimestamp, feedingIntervalMinutes, isLogging, lastFeed, lastNappy, lastPump, mode, nextFeedText, now, pumpMinutes, pumpMl, pumpTimestamp, summary])
+  }, [canLogCustomBreast, canLogCustomExpressed, canLogCustomFormula, canLogPump, customBreastMinutes, customBreastValue, customExpressedMl, customExpressedValue, customFormulaMl, customFormulaValue, feedCardClass, feedLabelClass, feedTimestamp, feedingIntervalMinutes, isLogging, lastFeed, lastNappy, lastPump, mode, nextFeed, now, pumpMinutes, pumpMl, pumpTimestamp, summary])
 
   return (
     <>

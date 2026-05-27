@@ -45,7 +45,7 @@ export function AppShell({
   })
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="min-h-dvh flex flex-col bg-background">
       <header className="flex-none px-4 pt-[calc(3rem+env(safe-area-inset-top,0px))] pb-4 lg:border-b lg:border-border lg:px-8 lg:pt-6">
         <div className="mx-auto flex w-full max-w-[1600px] items-start justify-between gap-6">
           <div>
@@ -72,7 +72,7 @@ export function AppShell({
           </nav>
         </div>
       </header>
-      <main className="flex-1 overflow-y-auto px-4 pb-24 lg:px-8 lg:py-6">
+      <main className="flex-1 overflow-y-auto px-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:px-8 lg:py-6">
         <div className="mx-auto w-full max-w-[1600px]">{children}</div>
       </main>
       <BottomNav />

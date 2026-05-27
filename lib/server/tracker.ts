@@ -340,8 +340,13 @@ export async function signupUser(usernameInput: string, password: string, invite
     await Promise.all([
       setUser(username, { id: householdId, hash, inviteCode }),
       setInvite(inviteCode, { householdId }),
-      initializeHousehold(householdId, inviteCode),
+      initializeHousehold(householdId, inviteCode, true),
     ])
+  }
+
+  if (invite) {
+    const meta = await getHouseholdMeta(householdId)
+    await setHouseholdMeta(householdId, { ...meta, inviteCode: meta?.inviteCode || inviteCode, hasSignInAccount: true })
   }
 
   return { householdId, inviteCode }
@@ -360,8 +365,10 @@ export async function createUserForHousehold(householdId: string, usernameInput:
   if (!meta?.inviteCode) {
     await Promise.all([
       setInvite(inviteCode, { householdId }),
-      setHouseholdMeta(householdId, { ...meta, inviteCode }),
+      setHouseholdMeta(householdId, { ...meta, inviteCode, hasSignInAccount: true }),
     ])
+  } else if (!meta.hasSignInAccount) {
+    await setHouseholdMeta(householdId, { ...meta, hasSignInAccount: true })
   }
 
   const hash = await bcrypt.hash(password, 12)
@@ -395,6 +402,11 @@ export async function loginUser(usernameInput: string, password: string) {
 
   const matches = await bcrypt.compare(password, user.hash)
   if (!matches) throw new AppError('Incorrect password', 401)
+
+  const meta = await getHouseholdMeta(user.id)
+  if (!meta?.hasSignInAccount) {
+    await setHouseholdMeta(user.id, { ...meta, inviteCode: meta?.inviteCode || user.inviteCode, hasSignInAccount: true })
+  }
 
   return { householdId: user.id, inviteCode: user.inviteCode }
 }

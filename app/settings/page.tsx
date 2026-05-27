@@ -14,6 +14,7 @@ export default async function SettingsPage() {
         babyName={meta?.babyName || ''}
         babyDob={meta?.babyDob || ''}
         feedingIntervalMinutes={meta?.feedingIntervalMinutes || ''}
+        hasSignInAccount={Boolean(meta?.hasSignInAccount)}
       />
     </AppShell>
   )
