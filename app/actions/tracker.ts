@@ -22,7 +22,9 @@ function getString(formData: FormData, key: string) {
 }
 
 function getNumber(formData: FormData, key: string) {
-  const value = Number(getString(formData, key))
+  const rawValue = getString(formData, key).trim()
+  if (!rawValue) return undefined
+  const value = Number(rawValue)
   return Number.isFinite(value) ? value : undefined
 }
 

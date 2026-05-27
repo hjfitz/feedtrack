@@ -58,6 +58,10 @@ function formatFeedDetail(feed: FeedEntry) {
   return `Breast ${feed.durationSeconds ? formatDurationMins(feed.durationSeconds) : ''}`
 }
 
+function formatPumpVolume(volumeMl?: number) {
+  return volumeMl ? `${volumeMl}ml` : 'n/a'
+}
+
 export function HomePanel({
   lastFeed,
   lastNappy,
@@ -111,7 +115,8 @@ export function HomePanel({
   const canLogCustomBreast = Number.isFinite(customBreastValue) && customBreastValue > 0
   const canLogCustomExpressed = Number.isFinite(customExpressedValue) && customExpressedValue > 0
   const canLogCustomFormula = Number.isFinite(customFormulaValue) && customFormulaValue > 0
-  const canLogPump = Number.isFinite(pumpMinutesValue) && pumpMinutesValue > 0 && Number.isFinite(pumpMlValue) && pumpMlValue > 0 && Boolean(pumpTimestamp)
+  const hasPumpVolume = pumpMl.trim() !== ''
+  const canLogPump = Number.isFinite(pumpMinutesValue) && pumpMinutesValue > 0 && (!hasPumpVolume || (Number.isFinite(pumpMlValue) && pumpMlValue > 0)) && Boolean(pumpTimestamp)
   const canLogNappy = Boolean(nappyType && nappyTimestamp)
   const nextFeedText = nextFeedEstimate(lastFeed, feedingIntervalMinutes, now)
 
@@ -200,14 +205,14 @@ export function HomePanel({
   function logPump() {
     if (!canLogPump) return
     const roundedMinutes = Math.round(pumpMinutesValue)
-    const roundedMl = Math.round(pumpMlValue)
+    const roundedMl = hasPumpVolume ? Math.round(pumpMlValue) : undefined
     const formData = new FormData()
     formData.set('durationMinutes', String(roundedMinutes))
-    formData.set('volumeMl', String(roundedMl))
+    formData.set('volumeMl', roundedMl ? String(roundedMl) : '')
     formData.set('timestamp', pumpTimestamp)
-    runLog(`pump-${roundedMinutes}-${roundedMl}`, formData, addPumpAction, () => {
+    runLog(`pump-${roundedMinutes}-${roundedMl ?? 'na'}`, formData, addPumpAction, () => {
       setConfirmation('pump')
-      setConfirmationDetail(`${roundedMinutes}m · ${roundedMl}ml`)
+      setConfirmationDetail(`${roundedMinutes}m · ${formatPumpVolume(roundedMl)}`)
       setPumpTimestamp(formatAppDateTimeLocal(new Date()))
       setMode('home')
     })
@@ -353,9 +358,12 @@ export function HomePanel({
                     {ml}
                   </button>
                 ))}
+                <button type="button" onClick={() => setPumpMl('')} disabled={isLogging} className={`h-12 rounded-xl border text-sm font-bold transition-colors ${pumpMl === '' ? 'border-emerald-500/60 bg-emerald-500/20 text-emerald-300' : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-400'} disabled:opacity-45`}>
+                  n/a
+                </button>
               </div>
               <div className="relative">
-                <input type="number" inputMode="numeric" min="1" step="1" value={pumpMl} onChange={(event) => setPumpMl(event.target.value)} disabled={isLogging} className="h-12 w-full rounded-xl bg-background border border-border px-4 pr-12 text-foreground disabled:opacity-45" />
+                <input type="number" inputMode="numeric" min="1" step="1" value={pumpMl} onChange={(event) => setPumpMl(event.target.value)} disabled={isLogging} className="h-12 w-full rounded-xl bg-background border border-border px-4 pr-12 text-foreground disabled:opacity-45" placeholder="n/a" />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">ml</span>
               </div>
             </div>
@@ -370,22 +378,22 @@ export function HomePanel({
 
     return (
       <div className="flex flex-col gap-6">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl bg-muted/50 p-4 text-center border border-muted">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Since feed</p>
-            <p className="whitespace-nowrap text-2xl font-bold text-foreground tabular-nums sm:text-3xl">{formatTimeSince(lastFeed?.timestamp ?? null, now)}</p>
-            {lastFeed && <p className="text-sm text-muted-foreground mt-1">{formatFeedDetail(lastFeed)}</p>}
-            {nextFeedText && <p className="text-xs text-muted-foreground/80 mt-2">{nextFeedText}</p>}
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          <div className="min-w-0 rounded-2xl bg-sky-500/10 p-3 text-center border border-sky-500/20 sm:p-4">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-sky-300 sm:text-xs">Feed</p>
+            <p className="whitespace-nowrap text-xl font-bold text-foreground tabular-nums sm:text-3xl">{formatTimeSince(lastFeed?.timestamp ?? null, now)}</p>
+            {lastFeed && <p className="mt-1 truncate text-[11px] text-muted-foreground sm:text-sm">{formatFeedDetail(lastFeed)}</p>}
+            {nextFeedText && <p className="mt-1 line-clamp-2 text-[10px] leading-tight text-muted-foreground/80 sm:text-xs">{nextFeedText}</p>}
           </div>
-          <div className="rounded-2xl bg-muted/50 p-4 text-center border border-muted">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Since nappy</p>
-            <p className="whitespace-nowrap text-2xl font-bold text-foreground tabular-nums sm:text-3xl">{formatTimeSince(lastNappy?.timestamp ?? null, now)}</p>
-            {lastNappy && <p className="text-sm text-muted-foreground mt-1 capitalize">{lastNappy.type === 'both' ? 'Wet + Dirty' : lastNappy.type}</p>}
+          <div className="min-w-0 rounded-2xl bg-violet-500/10 p-3 text-center border border-violet-500/20 sm:p-4">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-violet-300 sm:text-xs">Nappy</p>
+            <p className="whitespace-nowrap text-xl font-bold text-foreground tabular-nums sm:text-3xl">{formatTimeSince(lastNappy?.timestamp ?? null, now)}</p>
+            {lastNappy && <p className="mt-1 truncate text-[11px] text-muted-foreground capitalize sm:text-sm">{lastNappy.type === 'both' ? 'Wet + Dirty' : lastNappy.type}</p>}
           </div>
-          <div className="rounded-2xl bg-muted/50 p-4 text-center border border-muted">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Since pump</p>
-            <p className="whitespace-nowrap text-2xl font-bold text-foreground tabular-nums sm:text-3xl">{formatTimeSince(lastPump?.timestamp ?? null, now)}</p>
-            {lastPump && <p className="text-sm text-muted-foreground mt-1">{Math.round((lastPump.durationSeconds || 0) / 60)}m · {lastPump.volumeMl}ml</p>}
+          <div className="min-w-0 rounded-2xl bg-emerald-500/10 p-3 text-center border border-emerald-500/20 sm:p-4">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300 sm:text-xs">Pump</p>
+            <p className="whitespace-nowrap text-xl font-bold text-foreground tabular-nums sm:text-3xl">{formatTimeSince(lastPump?.timestamp ?? null, now)}</p>
+            {lastPump && <p className="mt-1 truncate text-[11px] text-muted-foreground sm:text-sm">{Math.round((lastPump.durationSeconds || 0) / 60)}m · {formatPumpVolume(lastPump.volumeMl)}</p>}
           </div>
         </div>
         <div className="rounded-2xl bg-muted/30 p-4 border border-muted/50">
@@ -429,41 +437,50 @@ export function HomePanel({
             </div>
           </div>
         </div>
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
           <div className="flex items-center gap-3">
             <div className="h-px flex-1 bg-border" />
             <p className="text-xs text-muted-foreground uppercase tracking-wide">Log</p>
             <div className="h-px flex-1 bg-border" />
           </div>
-          <div className="flex flex-col gap-2">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">Feeds</p>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <button onClick={() => showFeedMode('breast')} disabled={isLogging} className="flex h-20 flex-col items-center justify-center rounded-2xl bg-sky-500/15 border-2 border-sky-500/30 text-sky-400 transition-all duration-150 hover:bg-sky-500/25 hover:border-sky-500/50 hover:scale-[1.01] active:bg-sky-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+          <div className="rounded-2xl border border-muted/60 bg-muted/20 p-3">
+            <p className="mb-2 text-xs text-muted-foreground uppercase tracking-wide">Feeds</p>
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              <button onClick={() => showFeedMode('breast')} disabled={isLogging} className="flex h-20 min-w-0 flex-col items-center justify-center rounded-xl bg-sky-500/15 border-2 border-sky-500/30 px-1 text-sky-400 transition-all duration-150 hover:bg-sky-500/25 hover:border-sky-500/50 hover:scale-[1.01] active:bg-sky-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
                 <span className="text-lg font-bold">Breast</span>
                 <span className="text-xs font-medium text-muted-foreground">duration</span>
               </button>
-              <button onClick={() => showFeedMode('expressed')} disabled={isLogging} className="flex h-20 flex-col items-center justify-center rounded-2xl bg-cyan-500/15 border-2 border-cyan-500/30 text-cyan-400 transition-all duration-150 hover:bg-cyan-500/25 hover:border-cyan-500/50 hover:scale-[1.01] active:bg-cyan-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+              <button onClick={() => showFeedMode('expressed')} disabled={isLogging} className="flex h-20 min-w-0 flex-col items-center justify-center rounded-xl bg-cyan-500/15 border-2 border-cyan-500/30 px-1 text-cyan-400 transition-all duration-150 hover:bg-cyan-500/25 hover:border-cyan-500/50 hover:scale-[1.01] active:bg-cyan-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
                 <span className="text-lg font-bold">Milk</span>
                 <span className="text-xs font-medium text-muted-foreground">expressed feed</span>
               </button>
-              <button onClick={() => showFeedMode('formula')} disabled={isLogging} className="flex h-20 flex-col items-center justify-center rounded-2xl bg-amber-500/15 border-2 border-amber-500/30 text-amber-400 transition-all duration-150 hover:bg-amber-500/25 hover:border-amber-500/50 hover:scale-[1.01] active:bg-amber-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+              <button onClick={() => showFeedMode('formula')} disabled={isLogging} className="flex h-20 min-w-0 flex-col items-center justify-center rounded-xl bg-amber-500/15 border-2 border-amber-500/30 px-1 text-amber-400 transition-all duration-150 hover:bg-amber-500/25 hover:border-amber-500/50 hover:scale-[1.01] active:bg-amber-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
                 <span className="text-lg font-bold">Formula</span>
-                <span className="text-xs font-medium text-muted-foreground">made up · ml</span>
-              </button>
-              <button onClick={() => showFeedMode('pump')} disabled={isLogging} className="flex h-20 flex-col items-center justify-center rounded-2xl bg-emerald-500/15 border-2 border-emerald-500/30 text-emerald-400 transition-all duration-150 hover:bg-emerald-500/25 hover:border-emerald-500/50 hover:scale-[1.01] active:bg-emerald-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
-                <span className="text-lg font-bold">Pump</span>
-                <span className="text-xs font-medium text-muted-foreground">time · ml</span>
+                <span className="text-xs font-medium text-muted-foreground">bottle</span>
               </button>
             </div>
           </div>
-          <div className="flex flex-col gap-2">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">Nappies</p>
-            <div className="grid grid-cols-3 gap-3">
-              {(['wet', 'dirty', 'both'] as const).map(type => (
-                <button key={type} onClick={() => openNappyDialog(type)} disabled={isLogging} className="flex h-20 items-center justify-center rounded-2xl bg-violet-500/15 border-2 border-violet-500/30 text-violet-400 transition-all duration-150 hover:bg-violet-500/25 hover:border-violet-500/50 hover:scale-[1.01] active:bg-violet-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
-                  <span className="text-lg font-bold capitalize">{type}</span>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3">
+              <p className="mb-2 text-xs text-emerald-300 uppercase tracking-wide">Pump</p>
+              <button onClick={() => showFeedMode('pump')} disabled={isLogging} className="flex h-20 w-full flex-col items-center justify-center rounded-xl bg-emerald-500/15 border-2 border-emerald-500/30 text-emerald-400 transition-all duration-150 hover:bg-emerald-500/25 hover:border-emerald-500/50 hover:scale-[1.01] active:bg-emerald-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+                <span className="text-lg font-bold">Pump</span>
+                <span className="text-xs font-medium text-muted-foreground">time · volume</span>
+              </button>
+            </div>
+            <div className="rounded-2xl border border-muted/60 bg-muted/20 p-3">
+              <p className="mb-2 text-xs text-muted-foreground uppercase tracking-wide">Nappies</p>
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                <button onClick={() => openNappyDialog('wet')} disabled={isLogging} className="flex h-20 items-center justify-center rounded-xl bg-blue-500/15 border-2 border-blue-500/30 text-blue-400 transition-all duration-150 hover:bg-blue-500/25 hover:border-blue-500/50 hover:scale-[1.01] active:bg-blue-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+                  <span className="text-lg font-bold">Wet</span>
                 </button>
-              ))}
+                <button onClick={() => openNappyDialog('dirty')} disabled={isLogging} className="flex h-20 items-center justify-center rounded-xl bg-orange-500/15 border-2 border-orange-500/30 text-orange-400 transition-all duration-150 hover:bg-orange-500/25 hover:border-orange-500/50 hover:scale-[1.01] active:bg-orange-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+                  <span className="text-lg font-bold">Dirty</span>
+                </button>
+                <button onClick={() => openNappyDialog('both')} disabled={isLogging} className="flex h-20 items-center justify-center rounded-xl bg-violet-500/15 border-2 border-violet-500/30 text-violet-400 transition-all duration-150 hover:bg-violet-500/25 hover:border-violet-500/50 hover:scale-[1.01] active:bg-violet-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+                  <span className="text-lg font-bold">Both</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

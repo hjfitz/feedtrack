@@ -40,7 +40,7 @@ function formatDuration(seconds: number): string {
 }
 
 function formatPumpDetail(pump: PumpEntry) {
-  return `${formatDuration(pump.durationSeconds)} · ${pump.volumeMl}ml`
+  return `${formatDuration(pump.durationSeconds)} · ${pump.volumeMl ? `${pump.volumeMl}ml` : 'n/a'}`
 }
 
 type FeedKind = 'breast' | 'expressed' | 'formula'
@@ -263,12 +263,13 @@ function NappyItem({ nappy }: { nappy: NappyEntry }) {
 function PumpItem({ pump }: { pump: PumpEntry }) {
   const [editing, setEditing] = useState(false)
   const [durationMinutes, setDurationMinutes] = useState(String(Math.round((pump.durationSeconds || 0) / 60)))
-  const [volumeMl, setVolumeMl] = useState(String(pump.volumeMl || 0))
+  const [volumeMl, setVolumeMl] = useState(pump.volumeMl ? String(pump.volumeMl) : '')
   const [timestamp, setTimestamp] = useState(formatAppDateTimeLocal(pump.timestamp))
   const [isPending, startTransition] = useTransition()
   const durationValue = Number(durationMinutes)
   const volumeValue = Number(volumeMl)
-  const canSave = Number.isFinite(durationValue) && durationValue > 0 && Number.isFinite(volumeValue) && volumeValue > 0 && timestamp
+  const hasVolume = volumeMl.trim() !== ''
+  const canSave = Number.isFinite(durationValue) && durationValue > 0 && (!hasVolume || (Number.isFinite(volumeValue) && volumeValue > 0)) && timestamp
 
   if (editing) {
     return (
@@ -293,7 +294,7 @@ function PumpItem({ pump }: { pump: PumpEntry }) {
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">min</span>
           </div>
           <div className="relative">
-            <input type="number" inputMode="numeric" min="1" step="1" value={volumeMl} onChange={(event) => setVolumeMl(event.target.value)} disabled={isPending} className="h-11 w-full rounded-lg bg-background border border-border px-3 pr-10 text-sm text-foreground disabled:opacity-50 disabled:cursor-not-allowed" />
+            <input type="number" inputMode="numeric" min="1" step="1" value={volumeMl} onChange={(event) => setVolumeMl(event.target.value)} disabled={isPending} className="h-11 w-full rounded-lg bg-background border border-border px-3 pr-10 text-sm text-foreground disabled:opacity-50 disabled:cursor-not-allowed" placeholder="n/a" />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">ml</span>
           </div>
         </div>

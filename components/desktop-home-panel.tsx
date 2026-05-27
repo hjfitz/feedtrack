@@ -92,7 +92,7 @@ function nappyLabel(nappy: NappyEntry) {
 }
 
 function pumpDetail(pump: PumpEntry) {
-  return `${Math.round((pump.durationSeconds || 0) / 60)}m · ${pump.volumeMl || 0}ml`
+  return `${Math.round((pump.durationSeconds || 0) / 60)}m · ${pump.volumeMl ? `${pump.volumeMl}ml` : 'n/a'}`
 }
 
 function tone(kind: FeedKind | NappyEntry['type']) {
@@ -225,13 +225,14 @@ function PumpLogSection({
 }: {
   disabled: boolean
   timestamp: string
-  onLog: (durationMinutes: number, volumeMl: number) => void
+  onLog: (durationMinutes: number, volumeMl?: number) => void
 }) {
   const [durationMinutes, setDurationMinutes] = useState('20')
   const [volumeMl, setVolumeMl] = useState('90')
   const durationValue = Number(durationMinutes)
   const volumeValue = Number(volumeMl)
-  const canLog = Number.isFinite(durationValue) && durationValue > 0 && Number.isFinite(volumeValue) && volumeValue > 0 && Boolean(timestamp) && !disabled
+  const hasVolume = volumeMl.trim() !== ''
+  const canLog = Number.isFinite(durationValue) && durationValue > 0 && (!hasVolume || (Number.isFinite(volumeValue) && volumeValue > 0)) && Boolean(timestamp) && !disabled
 
   return (
     <div className="rounded-lg border border-muted/60 bg-muted/15 p-3">
@@ -266,14 +267,23 @@ function PumpLogSection({
             onChange={(event) => setVolumeMl(event.target.value)}
             disabled={disabled}
             className="h-10 w-full rounded-lg border border-border bg-background px-3 pr-10 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-45"
+            placeholder="n/a"
           />
           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">ml</span>
         </div>
       </div>
       <button
         type="button"
+        disabled={disabled}
+        onClick={() => setVolumeMl('')}
+        className={`mt-2 h-9 w-full rounded-lg border px-4 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${volumeMl === '' ? 'border-emerald-500/60 bg-emerald-500/20 text-emerald-300' : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/15'}`}
+      >
+        Volume n/a
+      </button>
+      <button
+        type="button"
         disabled={!canLog}
-        onClick={() => onLog(durationValue, volumeValue)}
+        onClick={() => onLog(durationValue, hasVolume ? volumeValue : undefined)}
         className="mt-3 h-10 w-full rounded-lg bg-emerald-500 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-45"
       >
         Log pump
@@ -291,7 +301,7 @@ function DesktopQuickLog({
   pending: boolean
   onLogFeed: (kind: FeedKind, amount: number, timestamp: string) => void
   onLogNappy: (type: NappyEntry['type'], timestamp: string) => void
-  onLogPump: (durationMinutes: number, volumeMl: number, timestamp: string) => void
+  onLogPump: (durationMinutes: number, volumeMl: number | undefined, timestamp: string) => void
 }) {
   const [timestamp, setTimestamp] = useState(() => formatAppDateTimeLocal(new Date()))
 
@@ -584,19 +594,20 @@ function NappyActivityRow({ nappy, onChanged }: { nappy: NappyEntry; onChanged: 
 function PumpActivityRow({ pump, onChanged }: { pump: PumpEntry; onChanged: () => void }) {
   const [editing, setEditing] = useState(false)
   const [durationMinutes, setDurationMinutes] = useState(String(Math.round((pump.durationSeconds || 0) / 60)))
-  const [volumeMl, setVolumeMl] = useState(String(pump.volumeMl || 0))
+  const [volumeMl, setVolumeMl] = useState(pump.volumeMl ? String(pump.volumeMl) : '')
   const [timestamp, setTimestamp] = useState(formatAppDateTimeLocal(pump.timestamp))
   const [pending, startTransition] = useTransition()
   const durationValue = Number(durationMinutes)
   const volumeValue = Number(volumeMl)
-  const canSave = Number.isFinite(durationValue) && durationValue > 0 && Number.isFinite(volumeValue) && volumeValue > 0 && Boolean(timestamp)
+  const hasVolume = volumeMl.trim() !== ''
+  const canSave = Number.isFinite(durationValue) && durationValue > 0 && (!hasVolume || (Number.isFinite(volumeValue) && volumeValue > 0)) && Boolean(timestamp)
 
   function save() {
     if (!canSave) return
     const formData = new FormData()
     formData.set('id', pump.id)
     formData.set('durationMinutes', String(Math.round(durationValue)))
-    formData.set('volumeMl', String(Math.round(volumeValue)))
+    formData.set('volumeMl', hasVolume ? String(Math.round(volumeValue)) : '')
     formData.set('timestamp', timestamp)
     startTransition(async () => {
       await updatePumpAction(formData)
@@ -611,7 +622,7 @@ function PumpActivityRow({ pump, onChanged }: { pump: PumpEntry; onChanged: () =
         <input type="datetime-local" value={timestamp} onChange={(event) => setTimestamp(event.target.value)} disabled={pending} className="col-span-2 h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground" />
         <div className="grid grid-cols-2 gap-1">
           <input type="number" value={durationMinutes} onChange={(event) => setDurationMinutes(event.target.value)} disabled={pending} className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground" />
-          <input type="number" value={volumeMl} onChange={(event) => setVolumeMl(event.target.value)} disabled={pending} className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground" />
+          <input type="number" value={volumeMl} onChange={(event) => setVolumeMl(event.target.value)} disabled={pending} className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground" placeholder="n/a" />
         </div>
         <div className="flex justify-end gap-1">
           <button type="button" onClick={() => setEditing(false)} disabled={pending} className="grid h-9 w-9 place-items-center rounded-lg bg-muted text-muted-foreground" aria-label="Cancel edit">
@@ -748,18 +759,18 @@ export function DesktopHomePanel({
     })
   }
 
-  function logPump(durationMinutes: number, volumeMl: number, timestamp: string) {
+  function logPump(durationMinutes: number, volumeMl: number | undefined, timestamp: string) {
     const roundedDuration = Math.round(durationMinutes)
-    const roundedVolume = Math.round(volumeMl)
+    const roundedVolume = typeof volumeMl === 'number' ? Math.round(volumeMl) : undefined
     const formData = new FormData()
     formData.set('durationMinutes', String(roundedDuration))
-    formData.set('volumeMl', String(roundedVolume))
+    formData.set('volumeMl', roundedVolume ? String(roundedVolume) : '')
     formData.set('timestamp', timestamp)
-    setPendingKey(`pump-${roundedDuration}-${roundedVolume}`)
+    setPendingKey(`pump-${roundedDuration}-${roundedVolume ?? 'na'}`)
     startTransition(async () => {
       try {
         await addPumpAction(formData)
-        setMessage(`Pump session logged: ${roundedDuration}m · ${roundedVolume}ml`)
+        setMessage(`Pump session logged: ${roundedDuration}m · ${roundedVolume ? `${roundedVolume}ml` : 'n/a'}`)
         refresh()
       } finally {
         setPendingKey(null)

@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     .map(pump => ({
       type: 'Pump' as const,
       timestamp: new Date(pump.timestamp),
-      details: `${Math.round((pump.durationSeconds || 0) / 60)} min, ${pump.volumeMl || 0} ml`,
+      details: `${Math.round((pump.durationSeconds || 0) / 60)} min, ${pump.volumeMl ? `${pump.volumeMl} ml` : 'volume n/a'}`,
     }))
 
   const lines = ['Type,Date,Time,Details']

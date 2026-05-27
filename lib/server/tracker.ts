@@ -255,15 +255,14 @@ export async function addPump(
   if (typeof input.durationSeconds !== 'number' || input.durationSeconds <= 0) {
     throw new AppError('Pump duration is required')
   }
-  if (typeof input.volumeMl !== 'number' || input.volumeMl <= 0) {
-    throw new AppError('Pump volume is required')
-  }
 
   const pump: PumpEntry = {
     id: generateId(),
     timestamp,
     durationSeconds: Math.round(input.durationSeconds),
-    volumeMl: Math.round(input.volumeMl),
+  }
+  if (typeof input.volumeMl === 'number' && input.volumeMl > 0) {
+    pump.volumeMl = Math.round(input.volumeMl)
   }
 
   const pumps = await getHouseholdData(householdId, 'pumps')
@@ -283,8 +282,12 @@ export async function updatePump(householdId: string, id: string, input: Partial
   if (typeof input.durationSeconds === 'number' && input.durationSeconds > 0) {
     updates.durationSeconds = Math.round(input.durationSeconds)
   }
-  if (typeof input.volumeMl === 'number' && input.volumeMl > 0) {
-    updates.volumeMl = Math.round(input.volumeMl)
+  if ('volumeMl' in input) {
+    if (typeof input.volumeMl === 'number' && input.volumeMl > 0) {
+      updates.volumeMl = Math.round(input.volumeMl)
+    } else {
+      updates.volumeMl = undefined
+    }
   }
   if (input.timestamp) {
     const timestamp = parseDate(input.timestamp)
@@ -293,6 +296,9 @@ export async function updatePump(householdId: string, id: string, input: Partial
   }
 
   const nextPump: PumpEntry = { ...pumps[index], ...updates }
+  if ('volumeMl' in updates && updates.volumeMl === undefined) {
+    delete nextPump.volumeMl
+  }
   pumps[index] = nextPump
   await setHouseholdData(householdId, 'pumps', sortPumps(pumps))
   return nextPump

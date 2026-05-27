@@ -26,7 +26,7 @@ export interface PumpEntry {
   id: string
   timestamp: Date
   durationSeconds: number
-  volumeMl: number
+  volumeMl?: number
 }
 
 export interface DailySummary {
