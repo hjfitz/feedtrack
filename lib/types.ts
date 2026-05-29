@@ -3,7 +3,7 @@
 export type FeedType = 'breast' | 'formula'
 export type BreastSide = 'left' | 'right'
 export type NappyType = 'wet' | 'dirty' | 'both'
-export type NappySize = 'N' | '1' | '2' | '3' | '4' | '5' | '6' | '7'
+export type MessSize = 'small' | 'medium' | 'large'
 
 export interface FeedEntry {
   id: string
@@ -21,7 +21,7 @@ export interface NappyEntry {
   id: string
   type: NappyType
   timestamp: Date
-  size?: NappySize
+  messSize?: MessSize
   notes?: string
 }
 

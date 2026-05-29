@@ -40,7 +40,7 @@ export async function GET(request: Request) {
     .map(nappy => ({
       type: 'Nappy' as const,
       timestamp: new Date(nappy.timestamp),
-      details: `${nappy.type}${nappy.size ? ', size ' + nappy.size : ''}${nappy.notes ? ' - ' + nappy.notes : ''}`,
+      details: `${nappy.type}${nappy.messSize ? ', ' + nappy.messSize + ' mess' : ''}${nappy.notes ? ' - ' + nappy.notes : ''}`,
     }))
 
   const pumpEntries = pumps

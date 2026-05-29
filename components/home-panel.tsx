@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { addFeedAction, addNappyAction, addPumpAction } from '@/app/actions/tracker'
+import { ChevronLeft, ChevronRight, Pencil } from 'lucide-react'
+import { addFeedAction, addNappyAction, addPumpAction, deleteFeedAction, deleteNappyAction, deletePumpAction } from '@/app/actions/tracker'
 import { Calendar } from '@/components/ui/calendar'
 import {
   Dialog,
@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { Spinner } from '@/components/ui/spinner'
 import { formatAppDateTimeLocal, formatAppTime } from '@/lib/timezone'
+import type { HistoryItem } from '@/lib/server/history-data'
 import type { DailySummary, FeedEntry, NappyEntry, PumpEntry } from '@/lib/types'
 
 function formatTimeSince(date: Date | null, now: Date): string {
@@ -74,10 +75,16 @@ const FORMULA_PRESETS = [30, 60, 90, 120, 150, 180]
 const EXPRESSED_PRESETS = [30, 60, 90, 120, 150, 180]
 const PUMP_DURATION_PRESETS = [10, 15, 20, 25, 30, 40]
 const PUMP_VOLUME_PRESETS = [30, 60, 90, 120, 150, 180]
-const NAPPY_SIZES = ['', 'N', '1', '2', '3', '4', '5', '6', '7'] as const
+const MESS_SIZES = [
+  { value: '', label: 'n/a' },
+  { value: 'small', label: 'Small' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'large', label: 'Large' },
+] as const
 
 type QuickLogMode = 'home' | 'breast' | 'expressed' | 'formula' | 'pump'
 type ConfirmationType = 'breast' | 'expressed' | 'formula' | 'pump' | 'wet' | 'dirty' | 'both' | null
+type AddedEntry = { type: 'feed' | 'nappy' | 'pump'; id: string } | null
 
 interface DayNavigation {
   label: string
@@ -104,6 +111,11 @@ function formatPumpDetail(pump: PumpEntry) {
   return `${Math.round((pump.durationSeconds || 0) / 60)}m · ${formatPumpVolume(pump.volumeMl)}`
 }
 
+function formatNappyDetail(nappy: NappyEntry) {
+  const type = nappy.type === 'both' ? 'Wet + dirty' : nappy.type
+  return `${type}${nappy.messSize ? ` · ${nappy.messSize}` : ''}`
+}
+
 function dateFromKey(key: string) {
   const [year, month, day] = key.split('-').map(Number)
   return new Date(year, month - 1, day)
@@ -126,6 +138,7 @@ export function HomePanel({
   dayLastNappy,
   dayLastPump,
   summary,
+  recentItems,
   feedingIntervalMinutes,
   dayNavigation,
 }: {
@@ -136,6 +149,7 @@ export function HomePanel({
   dayLastNappy: NappyEntry | null
   dayLastPump: PumpEntry | null
   summary: DailySummary
+  recentItems: HistoryItem[]
   feedingIntervalMinutes?: number
   dayNavigation: DayNavigation
 }) {
@@ -143,6 +157,8 @@ export function HomePanel({
   const [mode, setMode] = useState<QuickLogMode>('home')
   const [confirmation, setConfirmation] = useState<ConfirmationType>(null)
   const [confirmationDetail, setConfirmationDetail] = useState('')
+  const [addedEntry, setAddedEntry] = useState<AddedEntry>(null)
+  const [undoing, setUndoing] = useState(false)
   const [customBreastMinutes, setCustomBreastMinutes] = useState('')
   const [customExpressedMl, setCustomExpressedMl] = useState('')
   const [customFormulaMl, setCustomFormulaMl] = useState('')
@@ -154,9 +170,12 @@ export function HomePanel({
   const [pumpTimestamp, setPumpTimestamp] = useState(() => formatAppDateTimeLocal(new Date()))
   const [nappyOpen, setNappyOpen] = useState(false)
   const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const [showFeedDetails, setShowFeedDetails] = useState(false)
+  const [showPumpDetails, setShowPumpDetails] = useState(false)
+  const [showNappyDetails, setShowNappyDetails] = useState(false)
   const [nappyType, setNappyType] = useState<'wet' | 'dirty' | 'both'>('wet')
   const [nappyTimestamp, setNappyTimestamp] = useState(() => formatAppDateTimeLocal(new Date()))
-  const [nappySize, setNappySize] = useState('')
+  const [messSize, setMessSize] = useState('medium')
   const [nappyNotes, setNappyNotes] = useState('')
   const [pendingKey, setPendingKey] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
@@ -173,7 +192,8 @@ export function HomePanel({
     const timeout = setTimeout(() => {
       setConfirmation(null)
       setConfirmationDetail('')
-    }, 1500)
+      setAddedEntry(null)
+    }, 5000)
     return () => clearTimeout(timeout)
   }, [confirmation])
 
@@ -221,6 +241,45 @@ export function HomePanel({
     navigateTo(hrefForDateKey(key, dayNavigation.todayKey))
   }
 
+  function setOffsetTimestamp(setter: (value: string) => void, minutesAgo: number) {
+    setter(formatAppDateTimeLocal(new Date(Date.now() - minutesAgo * 60000)))
+  }
+
+  function TimestampOffsets({ setter }: { setter: (value: string) => void }) {
+    return (
+      <div className="grid grid-cols-4 gap-2">
+        {[
+          { label: 'Now', value: 0 },
+          { label: '-10m', value: 10 },
+          { label: '-30m', value: 30 },
+          { label: '-1h', value: 60 },
+        ].map(option => (
+          <button key={option.label} type="button" onClick={() => setOffsetTimestamp(setter, option.value)} disabled={isLogging} className="h-10 rounded-xl bg-muted text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45">
+            {option.label}
+          </button>
+        ))}
+      </div>
+    )
+  }
+
+  async function undoLastEntry() {
+    if (!addedEntry || undoing) return
+    const formData = new FormData()
+    formData.set('id', addedEntry.id)
+    setUndoing(true)
+    try {
+      if (addedEntry.type === 'feed') await deleteFeedAction(formData)
+      if (addedEntry.type === 'nappy') await deleteNappyAction(formData)
+      if (addedEntry.type === 'pump') await deletePumpAction(formData)
+      setConfirmation(null)
+      setConfirmationDetail('')
+      setAddedEntry(null)
+      router.refresh()
+    } finally {
+      setUndoing(false)
+    }
+  }
+
   const ConfirmationToast = () => {
     if (!confirmation) return null
 
@@ -241,18 +300,28 @@ export function HomePanel({
           <span className="text-white text-xl">✓</span>
           <span className="text-white font-semibold text-lg flex-1">{config.label}</span>
           {confirmationDetail && <span className="text-white/80 font-medium">{confirmationDetail}</span>}
+          {addedEntry && (
+            <div className="flex gap-2">
+              <button type="button" onClick={() => navigateTo(dayNavigation.historyHref)} disabled={undoing} className="rounded-xl bg-white/20 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-white/30 disabled:opacity-60">
+                Edit
+              </button>
+              <button type="button" onClick={undoLastEntry} disabled={undoing} className="rounded-xl bg-white/20 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-white/30 disabled:opacity-60">
+                {undoing ? 'Undoing' : 'Undo'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     )
   }
 
-  function runLog(key: string, formData: FormData, action: (formData: FormData) => Promise<void>, done: () => void) {
+  function runLog(key: string, formData: FormData, action: (formData: FormData) => Promise<Exclude<AddedEntry, null>>, done: (entry: Exclude<AddedEntry, null>) => void) {
     if (isLogging) return
     setPendingKey(key)
     startTransition(async () => {
       try {
-        await action(formData)
-        done()
+        const entry = await action(formData)
+        done(entry)
       } finally {
         setPendingKey(null)
       }
@@ -264,14 +333,17 @@ export function HomePanel({
     setPumpTimestamp(formatAppDateTimeLocal(new Date()))
     setFeedNotes('')
     setPumpNotes('')
+    setShowFeedDetails(false)
+    setShowPumpDetails(false)
     setMode(nextMode)
   }
 
   function openNappyDialog(type: 'wet' | 'dirty' | 'both' = 'wet') {
     setNappyType(type)
     setNappyTimestamp(formatAppDateTimeLocal(new Date()))
-    setNappySize('')
+    setMessSize('medium')
     setNappyNotes('')
+    setShowNappyDetails(false)
     setNappyOpen(true)
   }
 
@@ -284,14 +356,16 @@ export function HomePanel({
     formData.set('amount', String(rounded))
     formData.set('timestamp', feedTimestamp)
     formData.set('notes', feedNotes)
-    runLog(`${type}-${measure}-${rounded}`, formData, addFeedAction, () => {
+    runLog(`${type}-${measure}-${rounded}`, formData, addFeedAction, (entry) => {
       const confirmationType = type === 'breast' && measure === 'volume' ? 'expressed' : type
       setConfirmation(confirmationType)
       setConfirmationDetail(measure === 'duration' ? `${rounded}m` : `${rounded}ml`)
+      setAddedEntry(entry)
       setCustomBreastMinutes('')
       setCustomExpressedMl('')
       setCustomFormulaMl('')
       setFeedNotes('')
+      setShowFeedDetails(false)
       setFeedTimestamp(formatAppDateTimeLocal(new Date()))
       setMode('home')
     })
@@ -302,14 +376,16 @@ export function HomePanel({
     const formData = new FormData()
     formData.set('type', nappyType)
     formData.set('timestamp', nappyTimestamp)
-    formData.set('size', nappySize)
+    formData.set('messSize', messSize)
     formData.set('notes', nappyNotes)
-    runLog(`nappy-${nappyType}`, formData, addNappyAction, () => {
+    runLog(`nappy-${nappyType}`, formData, addNappyAction, (entry) => {
       setConfirmation(nappyType)
+      setAddedEntry(entry)
       setNappyOpen(false)
       setNappyTimestamp(formatAppDateTimeLocal(new Date()))
-      setNappySize('')
+      setMessSize('medium')
       setNappyNotes('')
+      setShowNappyDetails(false)
     })
   }
 
@@ -322,13 +398,48 @@ export function HomePanel({
     formData.set('volumeMl', roundedMl ? String(roundedMl) : '')
     formData.set('timestamp', pumpTimestamp)
     formData.set('notes', pumpNotes)
-    runLog(`pump-${roundedMinutes}-${roundedMl ?? 'na'}`, formData, addPumpAction, () => {
+    runLog(`pump-${roundedMinutes}-${roundedMl ?? 'na'}`, formData, addPumpAction, (entry) => {
       setConfirmation('pump')
       setConfirmationDetail(`${roundedMinutes}m · ${formatPumpVolume(roundedMl)}`)
+      setAddedEntry(entry)
       setPumpTimestamp(formatAppDateTimeLocal(new Date()))
       setPumpNotes('')
+      setShowPumpDetails(false)
       setMode('home')
     })
+  }
+
+  function RecentActivity() {
+    if (!recentItems.length) return null
+
+    return (
+      <div className="rounded-2xl border border-muted/60 bg-muted/20 p-3">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Recent</p>
+          <button type="button" onClick={() => navigateTo(dayNavigation.historyHref)} disabled={isNavigating} className="text-xs font-semibold text-muted-foreground hover:text-foreground disabled:opacity-50">
+            Details
+          </button>
+        </div>
+        <div className="divide-y divide-muted/50">
+          {recentItems.slice(0, 3).map(item => {
+            const detail = item.type === 'feed'
+              ? formatFeedDetail(item.data as FeedEntry)
+              : item.type === 'nappy'
+                ? formatNappyDetail(item.data as NappyEntry)
+                : formatPumpDetail(item.data as PumpEntry)
+            return (
+              <div key={`${item.type}-${item.id}`} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-foreground">{detail}</p>
+                  <p className="text-xs text-muted-foreground">{formatAppTime(item.timestamp)}</p>
+                </div>
+                <Pencil className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
   }
 
   const mainContent = useMemo(() => {
@@ -342,8 +453,15 @@ export function HomePanel({
           <div className="flex flex-col gap-2">
             <label htmlFor="breast-feed-time" className="text-sm text-muted-foreground">Date & time</label>
             <input id="breast-feed-time" type="datetime-local" value={feedTimestamp} onChange={(event) => setFeedTimestamp(event.target.value)} disabled={isLogging} className="h-12 rounded-xl bg-background border border-border px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
+            <TimestampOffsets setter={setFeedTimestamp} />
           </div>
-          <textarea value={feedNotes} onChange={(event) => setFeedNotes(event.target.value)} disabled={isLogging} rows={2} maxLength={280} placeholder="Optional note" className="rounded-xl bg-background border border-border px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
+          {showFeedDetails ? (
+            <textarea value={feedNotes} onChange={(event) => setFeedNotes(event.target.value)} disabled={isLogging} rows={2} maxLength={280} placeholder="Optional note" className="rounded-xl bg-background border border-border px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
+          ) : (
+            <button type="button" onClick={() => setShowFeedDetails(true)} disabled={isLogging} className="h-11 rounded-xl bg-muted text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-45">
+              Add note
+            </button>
+          )}
           <div className="grid grid-cols-3 gap-3">
             {BREAST_PRESETS.map(mins => (
               <button key={mins} onClick={() => logFeed('breast', mins, 'duration')} disabled={!feedTimestamp || isLogging} className="py-7 rounded-2xl bg-sky-500/15 border-2 border-sky-500/30 text-sky-400 text-2xl font-bold transition-all duration-150 hover:bg-sky-500/25 hover:border-sky-500/50 hover:scale-[1.02] active:bg-sky-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
@@ -378,8 +496,15 @@ export function HomePanel({
           <div className="flex flex-col gap-2">
             <label htmlFor="expressed-feed-time" className="text-sm text-muted-foreground">Date & time</label>
             <input id="expressed-feed-time" type="datetime-local" value={feedTimestamp} onChange={(event) => setFeedTimestamp(event.target.value)} disabled={isLogging} className="h-12 rounded-xl bg-background border border-border px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
+            <TimestampOffsets setter={setFeedTimestamp} />
           </div>
-          <textarea value={feedNotes} onChange={(event) => setFeedNotes(event.target.value)} disabled={isLogging} rows={2} maxLength={280} placeholder="Optional note" className="rounded-xl bg-background border border-border px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
+          {showFeedDetails ? (
+            <textarea value={feedNotes} onChange={(event) => setFeedNotes(event.target.value)} disabled={isLogging} rows={2} maxLength={280} placeholder="Optional note" className="rounded-xl bg-background border border-border px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
+          ) : (
+            <button type="button" onClick={() => setShowFeedDetails(true)} disabled={isLogging} className="h-11 rounded-xl bg-muted text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-45">
+              Add note
+            </button>
+          )}
           <div className="grid grid-cols-3 gap-3">
             {EXPRESSED_PRESETS.map(ml => (
               <button key={ml} onClick={() => logFeed('breast', ml, 'volume')} disabled={!feedTimestamp || isLogging} className="py-7 rounded-2xl bg-cyan-500/15 border-2 border-cyan-500/30 text-cyan-400 text-2xl font-bold transition-all duration-150 hover:bg-cyan-500/25 hover:border-cyan-500/50 hover:scale-[1.02] active:bg-cyan-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
@@ -414,8 +539,15 @@ export function HomePanel({
           <div className="flex flex-col gap-2">
             <label htmlFor="formula-feed-time" className="text-sm text-muted-foreground">Date & time</label>
             <input id="formula-feed-time" type="datetime-local" value={feedTimestamp} onChange={(event) => setFeedTimestamp(event.target.value)} disabled={isLogging} className="h-12 rounded-xl bg-background border border-border px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
+            <TimestampOffsets setter={setFeedTimestamp} />
           </div>
-          <textarea value={feedNotes} onChange={(event) => setFeedNotes(event.target.value)} disabled={isLogging} rows={2} maxLength={280} placeholder="Optional note" className="rounded-xl bg-background border border-border px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
+          {showFeedDetails ? (
+            <textarea value={feedNotes} onChange={(event) => setFeedNotes(event.target.value)} disabled={isLogging} rows={2} maxLength={280} placeholder="Optional note" className="rounded-xl bg-background border border-border px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
+          ) : (
+            <button type="button" onClick={() => setShowFeedDetails(true)} disabled={isLogging} className="h-11 rounded-xl bg-muted text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-45">
+              Add note
+            </button>
+          )}
           <div className="grid grid-cols-3 gap-3">
             {FORMULA_PRESETS.map(ml => (
               <button key={ml} onClick={() => logFeed('formula', ml, 'volume')} disabled={!feedTimestamp || isLogging} className="py-7 rounded-2xl bg-amber-500/15 border-2 border-amber-500/30 text-amber-400 text-2xl font-bold transition-all duration-150 hover:bg-amber-500/25 hover:border-amber-500/50 hover:scale-[1.02] active:bg-amber-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
@@ -450,8 +582,15 @@ export function HomePanel({
           <div className="flex flex-col gap-2">
             <label htmlFor="pump-time" className="text-sm text-muted-foreground">Date & time</label>
             <input id="pump-time" type="datetime-local" value={pumpTimestamp} onChange={(event) => setPumpTimestamp(event.target.value)} disabled={isLogging} className="h-12 rounded-xl bg-background border border-border px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
+            <TimestampOffsets setter={setPumpTimestamp} />
           </div>
-          <textarea value={pumpNotes} onChange={(event) => setPumpNotes(event.target.value)} disabled={isLogging} rows={2} maxLength={280} placeholder="Optional note" className="rounded-xl bg-background border border-border px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
+          {showPumpDetails ? (
+            <textarea value={pumpNotes} onChange={(event) => setPumpNotes(event.target.value)} disabled={isLogging} rows={2} maxLength={280} placeholder="Optional note" className="rounded-xl bg-background border border-border px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
+          ) : (
+            <button type="button" onClick={() => setShowPumpDetails(true)} disabled={isLogging} className="h-11 rounded-xl bg-muted text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-45">
+              Add note
+            </button>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-3">
               <p className="text-sm text-muted-foreground">Duration</p>
@@ -558,6 +697,7 @@ export function HomePanel({
             </p>
           </div>
         </div>
+        <RecentActivity />
         <div className="rounded-2xl bg-muted/30 p-4 border border-muted/50">
           <div className="mb-3 flex items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground uppercase tracking-wide">{dayNavigation.isToday ? 'Today' : 'Selected day'}</p>
@@ -648,7 +788,7 @@ export function HomePanel({
         </div>
       </div>
     )
-  }, [canLogCustomBreast, canLogCustomExpressed, canLogCustomFormula, canLogPump, customBreastMinutes, customBreastValue, customExpressedMl, customExpressedValue, customFormulaMl, customFormulaValue, dayLastFeed, dayLastNappy, dayLastPump, dayNavigation, feedCardClass, feedLabelClass, feedNotes, feedTimestamp, isNavigating, isLogging, lastFeed, lastNappy, lastPump, mode, nextFeed, now, pumpMinutes, pumpMl, pumpNotes, pumpTimestamp, summary])
+  }, [canLogCustomBreast, canLogCustomExpressed, canLogCustomFormula, canLogPump, customBreastMinutes, customBreastValue, customExpressedMl, customExpressedValue, customFormulaMl, customFormulaValue, dayLastFeed, dayLastNappy, dayLastPump, dayNavigation, feedCardClass, feedLabelClass, feedNotes, feedTimestamp, isNavigating, isLogging, lastFeed, lastNappy, lastPump, mode, nextFeed, now, pumpMinutes, pumpMl, pumpNotes, pumpTimestamp, recentItems, showFeedDetails, showPumpDetails, summary])
 
   return (
     <>
@@ -690,14 +830,25 @@ export function HomePanel({
             <div className="flex flex-col gap-2">
               <label htmlFor="nappy-time" className="text-sm text-muted-foreground">Date & time</label>
               <input id="nappy-time" type="datetime-local" value={nappyTimestamp} onChange={(event) => setNappyTimestamp(event.target.value)} disabled={isLogging} className="h-12 rounded-xl bg-background border border-border px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
+              <TimestampOffsets setter={setNappyTimestamp} />
             </div>
             <div className="flex flex-col gap-2">
-              <label htmlFor="nappy-size" className="text-sm text-muted-foreground">Nappy size</label>
-              <select id="nappy-size" value={nappySize} onChange={(event) => setNappySize(event.target.value)} disabled={isLogging} className="h-12 rounded-xl bg-background border border-border px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 disabled:opacity-45 disabled:cursor-not-allowed">
-                {NAPPY_SIZES.map(option => <option key={option || 'none'} value={option}>{option ? `Size ${option}` : 'No size'}</option>)}
-              </select>
+              <p className="text-sm text-muted-foreground">Mess size</p>
+              <div className="grid grid-cols-4 gap-2">
+                {MESS_SIZES.map(option => (
+                  <button key={option.value || 'none'} type="button" onClick={() => setMessSize(option.value)} disabled={isLogging} className={`h-11 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${messSize === option.value ? 'bg-violet-500 text-white' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </div>
-            <textarea value={nappyNotes} onChange={(event) => setNappyNotes(event.target.value)} disabled={isLogging} rows={2} maxLength={280} placeholder="Optional note" className="rounded-xl bg-background border border-border px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
+            {showNappyDetails ? (
+              <textarea value={nappyNotes} onChange={(event) => setNappyNotes(event.target.value)} disabled={isLogging} rows={2} maxLength={280} placeholder="Optional note" className="rounded-xl bg-background border border-border px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
+            ) : (
+              <button type="button" onClick={() => setShowNappyDetails(true)} disabled={isLogging} className="h-11 rounded-xl bg-muted text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-45">
+                Add note
+              </button>
+            )}
             <DialogFooter>
               <button type="button" onClick={() => setNappyOpen(false)} disabled={isLogging} className="h-12 rounded-xl bg-muted px-5 text-sm font-semibold text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed">
                 Cancel

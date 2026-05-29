@@ -42,7 +42,12 @@ import type { DailySummary, FeedEntry, NappyEntry, PumpEntry } from '@/lib/types
 
 const BREAST_PRESETS = [5, 10, 15, 20, 25, 30]
 const BOTTLE_PRESETS = [30, 60, 90, 120, 150, 180]
-const NAPPY_SIZES = ['', 'N', '1', '2', '3', '4', '5', '6', '7'] as const
+const MESS_SIZES = [
+  { value: '', label: 'n/a' },
+  { value: 'small', label: 'Small' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'large', label: 'Large' },
+] as const
 
 type FeedKind = 'breast' | 'expressed' | 'formula'
 
@@ -341,12 +346,12 @@ function DesktopQuickLog({
 }: {
   pending: boolean
   onLogFeed: (kind: FeedKind, amount: number, timestamp: string, notes: string) => void
-  onLogNappy: (type: NappyEntry['type'], timestamp: string, size: string, notes: string) => void
+  onLogNappy: (type: NappyEntry['type'], timestamp: string, messSize: string, notes: string) => void
   onLogPump: (durationMinutes: number, volumeMl: number | undefined, timestamp: string, notes: string) => void
 }) {
   const [timestamp, setTimestamp] = useState(() => formatAppDateTimeLocal(new Date()))
   const [notes, setNotes] = useState('')
-  const [nappySize, setNappySize] = useState('')
+  const [messSize, setMessSize] = useState('medium')
 
   return (
     <section className="rounded-xl border border-muted bg-muted/10 p-4">
@@ -413,15 +418,19 @@ function DesktopQuickLog({
           </div>
           <Droplets className="h-4 w-4 text-violet-400" aria-hidden="true" />
         </div>
-        <div className="mb-3 grid grid-cols-[140px_1fr] gap-2">
-          <select value={nappySize} onChange={(event) => setNappySize(event.target.value)} disabled={pending} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-45" aria-label="Nappy size">
-            {NAPPY_SIZES.map(option => <option key={option || 'none'} value={option}>{option ? `Size ${option}` : 'No size'}</option>)}
-          </select>
+        <div className="mb-3 grid grid-cols-[minmax(260px,0.7fr)_1fr] gap-2">
+          <div className="grid grid-cols-4 gap-1">
+            {MESS_SIZES.map(option => (
+              <button key={option.value || 'none'} type="button" onClick={() => setMessSize(option.value)} disabled={pending} className={`h-10 rounded-lg text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${messSize === option.value ? 'bg-violet-500 text-white' : 'bg-background text-muted-foreground hover:text-foreground'}`}>
+                {option.label}
+              </button>
+            ))}
+          </div>
           <input type="text" value={notes} onChange={(event) => setNotes(event.target.value)} disabled={pending} maxLength={280} placeholder="Optional nappy note" className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground/50 disabled:cursor-not-allowed disabled:opacity-45" />
         </div>
         <div className="grid grid-cols-3 gap-2">
           {(['wet', 'dirty', 'both'] as const).map(type => (
-            <ActionButton key={type} disabled={!timestamp || pending} onClick={() => onLogNappy(type, timestamp, nappySize, notes)}>
+            <ActionButton key={type} disabled={!timestamp || pending} onClick={() => onLogNappy(type, timestamp, messSize, notes)}>
               {type === 'both' ? 'Wet + dirty' : type}
             </ActionButton>
           ))}
@@ -590,7 +599,7 @@ function NappyActivityRow({ nappy, onChanged }: { nappy: NappyEntry; onChanged: 
   const [editing, setEditing] = useState(false)
   const [type, setType] = useState(nappy.type)
   const [timestamp, setTimestamp] = useState(formatAppDateTimeLocal(nappy.timestamp))
-  const [size, setSize] = useState(nappy.size || '')
+  const [messSize, setMessSize] = useState(nappy.messSize || '')
   const [notes, setNotes] = useState(nappy.notes || '')
   const [pending, startTransition] = useTransition()
 
@@ -599,7 +608,7 @@ function NappyActivityRow({ nappy, onChanged }: { nappy: NappyEntry; onChanged: 
     formData.set('id', nappy.id)
     formData.set('type', type)
     formData.set('timestamp', timestamp)
-    formData.set('size', size)
+    formData.set('messSize', messSize)
     formData.set('notes', notes)
     startTransition(async () => {
       await updateNappyAction(formData)
@@ -627,10 +636,14 @@ function NappyActivityRow({ nappy, onChanged }: { nappy: NappyEntry; onChanged: 
             <Check className="h-4 w-4" />
           </button>
         </div>
-        <div className="col-span-3 grid grid-cols-[110px_1fr] gap-2">
-          <select value={size} onChange={(event) => setSize(event.target.value)} disabled={pending} className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground" aria-label="Nappy size">
-            {NAPPY_SIZES.map(option => <option key={option || 'none'} value={option}>{option ? `Size ${option}` : 'No size'}</option>)}
-          </select>
+        <div className="col-span-3 grid grid-cols-[240px_1fr] gap-2">
+          <div className="grid grid-cols-4 gap-1">
+            {MESS_SIZES.map(option => (
+              <button key={option.value || 'none'} type="button" onClick={() => setMessSize(option.value)} disabled={pending} className={`h-9 rounded-lg text-xs font-semibold transition-colors ${messSize === option.value ? 'bg-violet-500 text-white' : 'bg-background text-muted-foreground hover:text-foreground'}`}>
+                {option.label}
+              </button>
+            ))}
+          </div>
           <input type="text" value={notes} onChange={(event) => setNotes(event.target.value)} disabled={pending} maxLength={280} placeholder="Note" className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground placeholder:text-muted-foreground/50" />
         </div>
       </div>
@@ -641,7 +654,7 @@ function NappyActivityRow({ nappy, onChanged }: { nappy: NappyEntry; onChanged: 
     <div className="grid grid-cols-[82px_1fr_130px_112px] items-center gap-3 border-b border-muted/40 py-2 text-sm last:border-0">
       <span className="text-xs tabular-nums text-muted-foreground">{formatAppTime(nappy.timestamp)}</span>
       <span className="min-w-0 truncate font-medium text-foreground">{nappyLabel(nappy)} nappy{nappy.notes ? <span className="ml-2 font-normal text-muted-foreground">· {nappy.notes}</span> : null}</span>
-      <span className={`text-right font-semibold capitalize ${tone(nappy.type)}`}>{nappy.size ? `Size ${nappy.size}` : nappy.type}</span>
+      <span className={`text-right font-semibold capitalize ${tone(nappy.type)}`}>{nappy.messSize ? `${nappy.messSize} mess` : nappy.type}</span>
       <div className="flex justify-end gap-1">
         <button type="button" onClick={() => setEditing(true)} className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Edit nappy">
           <Pencil className="h-4 w-4" />
@@ -855,11 +868,11 @@ export function DesktopHomePanel({
     })
   }
 
-  function logNappy(type: NappyEntry['type'], timestamp: string, size: string, notes: string) {
+  function logNappy(type: NappyEntry['type'], timestamp: string, messSize: string, notes: string) {
     const formData = new FormData()
     formData.set('type', type)
     formData.set('timestamp', timestamp)
-    formData.set('size', size)
+    formData.set('messSize', messSize)
     formData.set('notes', notes)
     setPendingKey(`nappy-${type}`)
     startTransition(async () => {

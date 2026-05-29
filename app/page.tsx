@@ -47,7 +47,7 @@ export default async function HomePage({
   return (
     <AppShell babyName={meta?.babyName} babyDob={meta?.babyDob}>
       <div className="lg:hidden">
-        <HomePanel {...data} feedingIntervalMinutes={meta?.feedingIntervalMinutes} dayNavigation={dayNavigation} />
+        <HomePanel {...data} recentItems={historyData.items.slice(0, 4)} feedingIntervalMinutes={meta?.feedingIntervalMinutes} dayNavigation={dayNavigation} />
       </div>
       <DesktopHomePanel
         overview={data}

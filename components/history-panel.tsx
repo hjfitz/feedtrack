@@ -21,7 +21,12 @@ import type { HistoryItem } from '@/lib/server/history-data'
 
 export type FilterType = 'all' | 'feeds' | 'nappies' | 'pumps'
 export type TimeRange = 'today' | '12h' | '24h' | '7d' | 'day'
-const NAPPY_SIZES = ['', 'N', '1', '2', '3', '4', '5', '6', '7'] as const
+const MESS_SIZES = [
+  { value: '', label: 'n/a' },
+  { value: 'small', label: 'Small' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'large', label: 'Large' },
+] as const
 
 function formatTime(date: Date): string {
   return formatAppTime(date)
@@ -176,7 +181,7 @@ function NappyItem({ nappy }: { nappy: NappyEntry }) {
   const [editing, setEditing] = useState(false)
   const [type, setType] = useState(nappy.type)
   const [timestamp, setTimestamp] = useState(formatAppDateTimeLocal(nappy.timestamp))
-  const [size, setSize] = useState(nappy.size || '')
+  const [messSize, setMessSize] = useState(nappy.messSize || '')
   const [notes, setNotes] = useState(nappy.notes || '')
   const [isPending, startTransition] = useTransition()
   const colors: Record<string, { bg: string; text: string }> = {
@@ -200,7 +205,7 @@ function NappyItem({ nappy }: { nappy: NappyEntry }) {
         <input type="hidden" name="id" value={nappy.id} />
         <input type="hidden" name="type" value={type} />
         <input type="hidden" name="timestamp" value={timestamp} />
-        <input type="hidden" name="size" value={size} />
+        <input type="hidden" name="messSize" value={messSize} />
         <input type="hidden" name="notes" value={notes} />
         <div className="grid grid-cols-3 gap-2">
           {(['wet', 'dirty', 'both'] as const).map(option => (
@@ -209,11 +214,15 @@ function NappyItem({ nappy }: { nappy: NappyEntry }) {
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-[1fr_88px] gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_260px]">
           <input type="datetime-local" value={timestamp} onChange={(event) => setTimestamp(event.target.value)} disabled={isPending} className="h-11 rounded-lg bg-background border border-border px-3 text-sm text-foreground disabled:opacity-50 disabled:cursor-not-allowed" />
-          <select value={size} onChange={(event) => setSize(event.target.value)} disabled={isPending} className="h-11 rounded-lg bg-background border border-border px-2 text-sm text-foreground disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Nappy size">
-            {NAPPY_SIZES.map(option => <option key={option || 'none'} value={option}>{option ? `Size ${option}` : 'No size'}</option>)}
-          </select>
+          <div className="grid grid-cols-4 gap-1">
+            {MESS_SIZES.map(option => (
+              <button key={option.value || 'none'} type="button" onClick={() => setMessSize(option.value)} disabled={isPending} className={`h-11 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${messSize === option.value ? 'bg-violet-500 text-white' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
         <textarea value={notes} onChange={(event) => setNotes(event.target.value)} disabled={isPending} rows={2} maxLength={280} placeholder="Optional note" className="rounded-lg bg-background border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 disabled:opacity-50 disabled:cursor-not-allowed" />
         <div className="flex justify-end gap-2">
@@ -235,7 +244,7 @@ function NappyItem({ nappy }: { nappy: NappyEntry }) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground capitalize">{nappy.type === 'both' ? 'Wet & Dirty' : nappy.type} nappy</p>
-        <p className="text-xs text-muted-foreground">{formatTime(nappy.timestamp)}{nappy.size ? ` · Size ${nappy.size}` : ''}{nappy.notes ? ` · ${nappy.notes}` : ''}</p>
+        <p className="text-xs text-muted-foreground">{formatTime(nappy.timestamp)}{nappy.messSize ? ` · ${nappy.messSize} mess` : ''}{nappy.notes ? ` · ${nappy.notes}` : ''}</p>
       </div>
       <div className={`text-sm font-semibold capitalize ${c.text}`}>{nappy.type}</div>
       <div className="flex gap-1 shrink-0">

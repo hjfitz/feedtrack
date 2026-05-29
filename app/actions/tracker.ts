@@ -14,7 +14,7 @@ import {
   updateNappy,
   updatePump,
 } from '@/lib/server/tracker'
-import type { FeedType, NappySize, NappyType } from '@/lib/types'
+import type { FeedType, MessSize, NappyType } from '@/lib/types'
 
 function getString(formData: FormData, key: string) {
   const value = formData.get(key)
@@ -39,9 +39,9 @@ function getOptionalString(formData: FormData, key: string) {
   return value || undefined
 }
 
-function getNappySize(formData: FormData): NappySize | undefined {
-  const value = getOptionalString(formData, 'size')
-  return value === 'N' || value === '1' || value === '2' || value === '3' || value === '4' || value === '5' || value === '6' || value === '7'
+function getMessSize(formData: FormData): MessSize | undefined {
+  const value = getOptionalString(formData, 'messSize')
+  return value === 'small' || value === 'medium' || value === 'large'
     ? value
     : undefined
 }
@@ -80,32 +80,35 @@ export async function addFeedAction(formData: FormData) {
   const type = getString(formData, 'type') as FeedType
   const feedPayload = getFeedPayload(type, formData)
 
-  await addFeed(householdId, {
+  const feed = await addFeed(householdId, {
     type,
     timestamp: getTimestamp(formData),
     ...feedPayload,
   })
   revalidateTrackerPages()
+  return { type: 'feed' as const, id: feed.id }
 }
 
 export async function addNappyAction(formData: FormData) {
   const householdId = await requireSessionHouseholdId()
-  await addNappy(householdId, {
+  const nappy = await addNappy(householdId, {
     type: getString(formData, 'type') as NappyType,
     timestamp: getTimestamp(formData),
-    size: getNappySize(formData),
+    messSize: getMessSize(formData),
     notes: getOptionalString(formData, 'notes'),
   })
   revalidateTrackerPages()
+  return { type: 'nappy' as const, id: nappy.id }
 }
 
 export async function addPumpAction(formData: FormData) {
   const householdId = await requireSessionHouseholdId()
-  await addPump(householdId, {
+  const pump = await addPump(householdId, {
     timestamp: getTimestamp(formData),
     ...getPumpPayload(formData),
   })
   revalidateTrackerPages()
+  return { type: 'pump' as const, id: pump.id }
 }
 
 export async function updateFeedAction(formData: FormData) {
@@ -147,7 +150,7 @@ export async function updateNappyAction(formData: FormData) {
   await updateNappy(householdId, getString(formData, 'id'), {
     type: getString(formData, 'type') as NappyType,
     timestamp: getTimestamp(formData),
-    size: getNappySize(formData),
+    messSize: getMessSize(formData),
     notes: getOptionalString(formData, 'notes'),
   })
   revalidateTrackerPages()

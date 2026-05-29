@@ -16,7 +16,7 @@ import {
 } from '@/lib/server/blob-storage'
 import { calculateSummary } from '@/lib/server/summaries'
 import { addAppDays, parseAppDateTimeLocal, startOfAppDay } from '@/lib/timezone'
-import type { DailySummary, FeedEntry, FeedType, NappyEntry, NappySize, NappyType, PumpEntry } from '@/lib/types'
+import type { DailySummary, FeedEntry, FeedType, MessSize, NappyEntry, NappyType, PumpEntry } from '@/lib/types'
 
 const INVITE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
@@ -73,8 +73,8 @@ function cleanNotes(value: unknown) {
   return notes ? notes.slice(0, 280) : undefined
 }
 
-function cleanNappySize(value: unknown): NappySize | undefined {
-  return value === 'N' || value === '1' || value === '2' || value === '3' || value === '4' || value === '5' || value === '6' || value === '7'
+function cleanMessSize(value: unknown): MessSize | undefined {
+  return value === 'small' || value === 'medium' || value === 'large'
     ? value
     : undefined
 }
@@ -242,7 +242,7 @@ export async function deleteFeed(householdId: string, id: string) {
 
 export async function addNappy(
   householdId: string,
-  input: { type?: NappyType; timestamp?: unknown; size?: unknown; notes?: unknown }
+  input: { type?: NappyType; timestamp?: unknown; messSize?: unknown; notes?: unknown }
 ) {
   const timestamp = parseDate(input.timestamp)
 
@@ -258,7 +258,7 @@ export async function addNappy(
     id: generateId(),
     type: input.type,
     timestamp,
-    size: cleanNappySize(input.size),
+    messSize: cleanMessSize(input.messSize),
     notes: cleanNotes(input.notes),
   }
 
@@ -277,7 +277,7 @@ export async function updateNappy(householdId: string, id: string, input: Partia
 
   const updates: Partial<NappyEntry> = {}
   if (input.type === 'wet' || input.type === 'dirty' || input.type === 'both') updates.type = input.type
-  if ('size' in input) updates.size = cleanNappySize(input.size)
+  if ('messSize' in input) updates.messSize = cleanMessSize(input.messSize)
   if ('notes' in input) updates.notes = cleanNotes(input.notes)
   if (input.timestamp) {
     const timestamp = parseDate(input.timestamp)
@@ -286,8 +286,8 @@ export async function updateNappy(householdId: string, id: string, input: Partia
   }
 
   const nextNappy = { ...nappies[index], ...updates }
-  if ('size' in updates && !updates.size) {
-    delete nextNappy.size
+  if ('messSize' in updates && !updates.messSize) {
+    delete nextNappy.messSize
   }
   if ('notes' in updates && !updates.notes) {
     delete nextNappy.notes
