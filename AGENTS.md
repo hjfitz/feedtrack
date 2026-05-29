@@ -21,6 +21,15 @@
 - Use mock storage for local development and tests unless explicitly checking Netlify Blob behavior.
 - App-facing dates use `Europe/London`. Use `lib/timezone.ts` helpers instead of raw `toDateString`, `toLocaleDateString`, `toLocaleTimeString`, or server-local midnight calculations.
 
+## Product Principles
+- This is a private baby tracker for caregivers, not a medical advice app.
+- Prefer practical logging, review, and reassurance features over diagnosis, thresholds, or clinical interpretation.
+- Keep fast logging as the primary experience; richer details should be optional and should not slow down common entries.
+- Keep the core model small: feeds, nappies, pumps, notes, baby details, and household/session settings.
+- Avoid adding new feature areas unless they support the main flows: log today, review history, understand patterns, or share/export records.
+- Use calm, non-alarming copy. For health-adjacent context, frame it as tracking context and suggest contacting a care team if something feels off.
+- New stored fields must be optional and backwards compatible unless there is a clear migration plan.
+
 ## Editing Rules
 - Prefer server actions for form submissions from App Router client components.
 - Revalidate all user-visible tracker pages when feed/nappy mutations change dashboard or history data.
