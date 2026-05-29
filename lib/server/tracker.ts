@@ -340,16 +340,11 @@ export async function signupUser(usernameInput: string, password: string, invite
     await Promise.all([
       setUser(username, { id: householdId, hash, inviteCode }),
       setInvite(inviteCode, { householdId }),
-      initializeHousehold(householdId, inviteCode, true),
+      initializeHousehold(householdId, inviteCode),
     ])
   }
 
-  if (invite) {
-    const meta = await getHouseholdMeta(householdId)
-    await setHouseholdMeta(householdId, { ...meta, inviteCode: meta?.inviteCode || inviteCode, hasSignInAccount: true })
-  }
-
-  return { householdId, inviteCode }
+  return { householdId, inviteCode, username }
 }
 
 export async function createUserForHousehold(householdId: string, usernameInput: string, password: string) {
@@ -365,15 +360,13 @@ export async function createUserForHousehold(householdId: string, usernameInput:
   if (!meta?.inviteCode) {
     await Promise.all([
       setInvite(inviteCode, { householdId }),
-      setHouseholdMeta(householdId, { ...meta, inviteCode, hasSignInAccount: true }),
+      setHouseholdMeta(householdId, { ...meta, inviteCode }),
     ])
-  } else if (!meta.hasSignInAccount) {
-    await setHouseholdMeta(householdId, { ...meta, hasSignInAccount: true })
   }
 
   const hash = await bcrypt.hash(password, 12)
   await setUser(username, { id: householdId, hash, inviteCode })
-  return { householdId, inviteCode }
+  return { householdId, inviteCode, username }
 }
 
 export async function joinHouseholdWithInvite(inviteCodeInput: string) {
@@ -403,12 +396,7 @@ export async function loginUser(usernameInput: string, password: string) {
   const matches = await bcrypt.compare(password, user.hash)
   if (!matches) throw new AppError('Incorrect password', 401)
 
-  const meta = await getHouseholdMeta(user.id)
-  if (!meta?.hasSignInAccount) {
-    await setHouseholdMeta(user.id, { ...meta, inviteCode: meta?.inviteCode || user.inviteCode, hasSignInAccount: true })
-  }
-
-  return { householdId: user.id, inviteCode: user.inviteCode }
+  return { householdId: user.id, inviteCode: user.inviteCode, username }
 }
 
 export async function changePassword(

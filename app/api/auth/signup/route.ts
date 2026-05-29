@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   const body = await parseJsonBody<SignupBody>(request)
   try {
     const result = await signupUser(body?.username || '', body?.password || '', body?.inviteCode)
-    await setSessionCookie(result.householdId)
+    await setSessionCookie(result.householdId, result.username)
     return NextResponse.json(result)
   } catch (error) {
     if (error instanceof AppError) return jsonError(error.message, error.status)

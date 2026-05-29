@@ -23,7 +23,7 @@ function formError(error: unknown): AuthFormState {
 export async function loginAction(_state: AuthFormState, formData: FormData): Promise<AuthFormState> {
   try {
     const result = await loginUser(getString(formData, 'username'), getString(formData, 'password'))
-    await setSessionCookie(result.householdId)
+    await setSessionCookie(result.householdId, result.username)
   } catch (error) {
     return formError(error)
   }
@@ -41,7 +41,7 @@ export async function signupAction(_state: AuthFormState, formData: FormData): P
     }
 
     const result = await signupUser(getString(formData, 'username'), password, getString(formData, 'inviteCode'))
-    await setSessionCookie(result.householdId)
+    await setSessionCookie(result.householdId, result.username)
   } catch (error) {
     return formError(error)
   }
@@ -70,7 +70,8 @@ export async function createHouseholdAccountAction(_state: AuthFormState, formDa
     }
 
     const householdId = await requireSessionHouseholdId()
-    await createUserForHousehold(householdId, getString(formData, 'username'), password)
+    const result = await createUserForHousehold(householdId, getString(formData, 'username'), password)
+    await setSessionCookie(result.householdId, result.username)
   } catch (error) {
     return formError(error)
   }

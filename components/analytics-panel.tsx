@@ -13,7 +13,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from 'recharts'
-import { Baby, Clock3, Droplets, Flame, GlassWater, Layers3 } from 'lucide-react'
+import { Baby, Clock3, Droplets, Flame, GlassWater, Layers3, Moon, TrendingUp } from 'lucide-react'
 import { appDateKey } from '@/lib/timezone'
 import type { AnalyticsDataPoint } from '@/lib/server/analytics-data'
 
@@ -33,6 +33,29 @@ interface TooltipContentProps {
   payload?: TooltipPayload[]
   label?: string
   unit?: string
+}
+
+type Totals = ReturnType<typeof sumData>
+
+interface SummaryModel {
+  totals: Totals
+  previous: Totals
+  measuredFedMl: number
+  previousMeasuredFedMl: number
+  formulaPerFeed: number
+  breastPerFeed: number
+  breastMilkPerFeed: number
+  pumpMlPerSession: number
+  pumpMinutesPerSession: number
+  feedSessionsPerDay: number
+  measuredFedMlPerDay: number
+  nappiesPerDay: number
+  pumpMlPerDay: number
+  avgGap: number
+  longestGap: number
+  activeDays: number
+  quietDays: number
+  highestDay: AnalyticsDataPoint | null
 }
 
 function compactNumber(value: number) {
@@ -59,6 +82,10 @@ function avg(total: number, count: number, precision = 0) {
   if (!count) return 0
   const factor = 10 ** precision
   return Math.round((total / count) * factor) / factor
+}
+
+function measuredFedMl(day: AnalyticsDataPoint | Totals) {
+  return day.formulaMl + day.breastMilkMl
 }
 
 function sumData(days: AnalyticsDataPoint[]) {
@@ -112,14 +139,34 @@ function hasDataForView(day: AnalyticsDataPoint, category: CategoryOption, feedV
   return day.feedSessionCount > 0
 }
 
+function activityValue(day: AnalyticsDataPoint, category: CategoryOption) {
+  if (category === 'nappies') return day.totalNappies
+  if (category === 'pumps') return day.pumpCount
+  return day.feedSessionCount
+}
+
+function rangeLabel(range: RangeOption) {
+  if (range === '1d') return 'Today'
+  if (range === '7d') return 'Last 7 days'
+  return 'Last 30 days'
+}
+
+function chartTitle(category: CategoryOption, feedView: FeedViewOption, summary: SummaryModel) {
+  if (category === 'nappies') return 'Nappy changes breakdown'
+  if (category === 'pumps') return 'Pump volume over time'
+  if (feedView === 'formula') return 'Formula volume over time'
+  if (feedView === 'breast') return summary.totals.breastMins > 0 ? 'Breast feed minutes over time' : 'Expressed breast milk over time'
+  return 'Feed sessions over time'
+}
+
 function ChartTooltip({ active, payload, label, unit = '' }: TooltipContentProps) {
   if (!active || !payload?.length) return null
 
   return (
-    <div className="bg-card/95 border border-border p-3 rounded-xl shadow-xl backdrop-blur-sm">
-      <p className="text-xs font-semibold text-muted-foreground mb-1">{label}</p>
+    <div className="rounded-lg border border-border bg-card/95 p-3 text-sm shadow-xl backdrop-blur-sm">
+      <p className="mb-1 text-xs font-semibold text-muted-foreground">{label}</p>
       {payload.map(item => (
-        <p key={item.name} className="text-sm font-bold" style={{ color: item.color || item.fill }}>
+        <p key={item.name} className="font-semibold" style={{ color: item.color || item.fill }}>
           {item.name}: {item.value}{unit ? ` ${unit}` : ''}
         </p>
       ))}
@@ -139,19 +186,424 @@ function SummaryCard({
   helper?: string
 }) {
   return (
-    <div className="bg-muted/30 border border-muted/50 rounded-2xl p-4 min-w-0">
-      <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wider">{label}</p>
-      <p className={`text-2xl font-bold mt-1 tabular-nums ${tone}`}>{value}</p>
-      {helper && <p className="text-xs text-muted-foreground mt-2">{helper}</p>}
+    <div className="min-w-0 rounded-xl border border-muted/50 bg-muted/30 p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className={`mt-1 text-2xl font-bold tabular-nums ${tone}`}>{value}</p>
+      {helper && <p className="mt-2 truncate text-xs text-muted-foreground">{helper}</p>}
+    </div>
+  )
+}
+
+function InsightTile({
+  label,
+  value,
+  helper,
+  tone = 'text-foreground',
+}: {
+  label: string
+  value: string
+  helper?: string
+  tone?: string
+}) {
+  return (
+    <div className="rounded-lg border border-muted/50 bg-background/45 px-3 py-2">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={`mt-1 text-lg font-semibold tabular-nums ${tone}`}>{value}</p>
+      {helper && <p className="mt-1 truncate text-xs text-muted-foreground">{helper}</p>}
     </div>
   )
 }
 
 function EmptyChart({ label }: { label: string }) {
   return (
-    <div className="h-full min-h-52 rounded-xl border border-dashed border-muted/60 grid place-items-center px-6 text-center">
+    <div className="grid h-full min-h-52 place-items-center rounded-lg border border-dashed border-muted/60 px-6 text-center">
       <p className="text-sm text-muted-foreground">{label}</p>
     </div>
+  )
+}
+
+function FilterButton({
+  active,
+  children,
+  onClick,
+  className = '',
+}: {
+  active: boolean
+  children: React.ReactNode
+  onClick: () => void
+  className?: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:bg-background/55 hover:text-foreground'} ${className}`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function ProgressRow({
+  label,
+  value,
+  total,
+  color,
+}: {
+  label: string
+  value: number
+  total: number
+  color: string
+}) {
+  const width = total ? Math.max(3, Math.round((value / total) * 100)) : 0
+
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between gap-3 text-xs">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-semibold tabular-nums text-foreground">{compactNumber(value)}</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-muted/60">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${width}%` }} />
+      </div>
+    </div>
+  )
+}
+
+function AnalyticsChart({
+  category,
+  feedView,
+  chartData,
+  summary,
+  xInterval,
+  desktop = false,
+}: {
+  category: CategoryOption
+  feedView: FeedViewOption
+  chartData: AnalyticsDataPoint[]
+  summary: SummaryModel
+  xInterval: number
+  desktop?: boolean
+}) {
+  const hasFeedData = summary.totals.feedSessionCount > 0
+  const hasFormulaData = summary.totals.formulaMl > 0
+  const hasBreastData = summary.totals.breastMins > 0 || summary.totals.breastMilkMl > 0
+  const hasNappyData = summary.totals.totalNappies > 0
+  const hasPumpData = summary.totals.pumpCount > 0
+  const margin = desktop ? { top: 14, right: 14, left: -14, bottom: 0 } : { top: 10, right: 5, left: -25, bottom: 0 }
+
+  if (category === 'feeds' && feedView === 'combined') {
+    return hasFeedData ? (
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={chartData} margin={margin}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
+          <XAxis dataKey="date" interval={xInterval} stroke="currentColor" className="text-muted-foreground" tickLine={false} />
+          <YAxis allowDecimals={false} stroke="currentColor" className="text-muted-foreground" tickLine={false} axisLine={false} />
+          <Tooltip content={<ChartTooltip />} />
+          <Bar dataKey="feedSessionCount" name="Sessions" fill="#10b981" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    ) : <EmptyChart label="No feeds logged in this range yet." />
+  }
+
+  if (category === 'feeds' && feedView === 'formula') {
+    return hasFormulaData ? (
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={chartData} margin={margin}>
+          <defs>
+            <linearGradient id="colorFormula" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4} />
+              <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
+          <XAxis dataKey="date" interval={xInterval} stroke="currentColor" className="text-muted-foreground" tickLine={false} />
+          <YAxis stroke="currentColor" className="text-muted-foreground" tickLine={false} axisLine={false} />
+          <Tooltip content={<ChartTooltip unit="ml" />} cursor={{ stroke: 'rgba(245,158,11,0.2)', strokeWidth: 1 }} />
+          <Area type="monotone" dataKey="formulaMl" name="Formula" stroke="#f59e0b" strokeWidth={2} fillOpacity={1} fill="url(#colorFormula)" />
+        </AreaChart>
+      </ResponsiveContainer>
+    ) : <EmptyChart label="No formula feeds logged in this range yet." />
+  }
+
+  if (category === 'feeds' && feedView === 'breast') {
+    return hasBreastData ? (
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={chartData} margin={margin}>
+          <defs>
+            <linearGradient id="colorBreast" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.4} />
+              <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
+          <XAxis dataKey="date" interval={xInterval} stroke="currentColor" className="text-muted-foreground" tickLine={false} />
+          <YAxis stroke="currentColor" className="text-muted-foreground" tickLine={false} axisLine={false} />
+          <Tooltip content={<ChartTooltip unit={summary.totals.breastMins > 0 ? 'mins' : 'ml'} />} cursor={{ stroke: 'rgba(14,165,233,0.2)', strokeWidth: 1 }} />
+          <Area
+            type="monotone"
+            dataKey={summary.totals.breastMins > 0 ? 'breastMins' : 'breastMilkMl'}
+            name={summary.totals.breastMins > 0 ? 'Breast Duration' : 'Breast Milk'}
+            stroke={summary.totals.breastMins > 0 ? '#0ea5e9' : '#06b6d4'}
+            strokeWidth={2}
+            fillOpacity={1}
+            fill="url(#colorBreast)"
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    ) : <EmptyChart label="No breast feeds logged in this range yet." />
+  }
+
+  if (category === 'nappies') {
+    return hasNappyData ? (
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={chartData} margin={margin}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
+          <XAxis dataKey="date" interval={xInterval} stroke="currentColor" className="text-muted-foreground" tickLine={false} />
+          <YAxis allowDecimals={false} stroke="currentColor" className="text-muted-foreground" tickLine={false} axisLine={false} />
+          <Tooltip content={<ChartTooltip />} />
+          <Bar dataKey="wetOnly" name="Wet only" stackId="nappy" fill="#3b82f6" radius={[0, 0, 0, 0]} />
+          <Bar dataKey="dirtyOnly" name="Dirty only" stackId="nappy" fill="#f97316" radius={[0, 0, 0, 0]} />
+          <Bar dataKey="both" name="Both" stackId="nappy" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    ) : <EmptyChart label="No nappies logged in this range yet." />
+  }
+
+  return hasPumpData ? (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={chartData} margin={margin}>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
+        <XAxis dataKey="date" interval={xInterval} stroke="currentColor" className="text-muted-foreground" tickLine={false} />
+        <YAxis stroke="currentColor" className="text-muted-foreground" tickLine={false} axisLine={false} />
+        <Tooltip content={<ChartTooltip unit="ml" />} />
+        <Bar dataKey="pumpMl" name="Pumped" fill="#10b981" radius={[4, 4, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  ) : <EmptyChart label="No pump sessions logged in this range yet." />
+}
+
+function RangeFilters({ range, updateFilters }: { range: RangeOption; updateFilters: (next: Partial<{ range: RangeOption; category: CategoryOption; feedView: FeedViewOption }>) => void }) {
+  return (
+    <div className="flex rounded-xl border border-muted/50 bg-muted/30 p-1">
+      {(['1d', '7d', '30d'] as RangeOption[]).map(option => (
+        <FilterButton key={option} active={range === option} onClick={() => updateFilters({ range: option })} className="flex-1">
+          {rangeLabel(option)}
+        </FilterButton>
+      ))}
+    </div>
+  )
+}
+
+function CategoryFilters({ category, updateFilters }: { category: CategoryOption; updateFilters: (next: Partial<{ range: RangeOption; category: CategoryOption; feedView: FeedViewOption }>) => void }) {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {[
+        { value: 'feeds', label: 'Feeds', icon: GlassWater, active: 'bg-amber-500/10 border-amber-500/40 text-amber-400' },
+        { value: 'nappies', label: 'Nappies', icon: Baby, active: 'bg-violet-500/10 border-violet-500/40 text-violet-400' },
+        { value: 'pumps', label: 'Pumps', icon: Droplets, active: 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' },
+      ].map(option => {
+        const Icon = option.icon
+        const isActive = category === option.value
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => updateFilters({ category: option.value as CategoryOption })}
+            className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-bold transition-colors ${
+              isActive ? option.active : 'border-muted/50 bg-muted/20 text-muted-foreground hover:bg-muted/35 hover:text-foreground'
+            }`}
+          >
+            <Icon className="h-4 w-4" />
+            {option.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function FeedViewFilters({ feedView, updateFilters }: { feedView: FeedViewOption; updateFilters: (next: Partial<{ range: RangeOption; category: CategoryOption; feedView: FeedViewOption }>) => void }) {
+  return (
+    <div className="grid grid-cols-3 gap-2 rounded-xl border border-muted/30 bg-muted/15 p-1">
+      {[
+        { value: 'combined', label: 'Count', icon: Layers3, active: 'bg-emerald-500' },
+        { value: 'formula', label: 'Formula', icon: GlassWater, active: 'bg-amber-500' },
+        { value: 'breast', label: 'Breast', icon: Flame, active: 'bg-sky-500' },
+      ].map(option => {
+        const Icon = option.icon
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => updateFilters({ feedView: option.value as FeedViewOption })}
+            className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-colors ${
+              feedView === option.value ? `${option.active} text-white shadow-sm` : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            {option.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function MobileSummaryCards({ category, feedView, summary }: { category: CategoryOption; feedView: FeedViewOption; summary: SummaryModel }) {
+  if (category === 'feeds') {
+    return (
+      <>
+        <div className="grid grid-cols-2 gap-3">
+          <SummaryCard label="Feed Sessions" value={compactNumber(summary.totals.feedSessionCount)} tone="text-emerald-400" helper={percentChange(summary.totals.feedSessionCount, summary.previous.feedSessionCount)} />
+          <SummaryCard label="Total ml Fed" value={`${compactNumber(summary.measuredFedMl)} ml`} tone="text-amber-400" helper="Measured bottles" />
+          <SummaryCard label="Sessions / Day" value={String(summary.feedSessionsPerDay)} helper={`${summary.totals.feedCount} feed entries`} />
+          <SummaryCard label="Avg Gap" value={formatHours(summary.avgGap)} tone="text-sky-400" helper="Between sessions" />
+        </div>
+        {feedView !== 'combined' && (
+          <div className="grid grid-cols-2 gap-3">
+            <SummaryCard
+              label={feedView === 'formula' ? 'Total Formula' : 'Total Duration'}
+              value={feedView === 'formula' ? `${compactNumber(summary.totals.formulaMl)} ml` : `${compactNumber(summary.totals.breastMins)} min`}
+              tone={feedView === 'formula' ? 'text-amber-400' : 'text-sky-400'}
+            />
+            <SummaryCard
+              label={feedView === 'formula' ? 'Avg / Bottle' : 'Avg / Feed'}
+              value={feedView === 'formula' ? `${summary.formulaPerFeed} ml` : `${summary.breastPerFeed} min`}
+            />
+            {feedView === 'breast' && summary.totals.breastMilkMl > 0 && (
+              <>
+                <SummaryCard label="Expressed Milk" value={`${compactNumber(summary.totals.breastMilkMl)} ml`} tone="text-cyan-400" />
+                <SummaryCard label="Avg / Bottle" value={`${summary.breastMilkPerFeed} ml`} />
+              </>
+            )}
+          </div>
+        )}
+      </>
+    )
+  }
+
+  if (category === 'nappies') {
+    return (
+      <div className="grid grid-cols-2 gap-3">
+        <SummaryCard label="Total Nappies" value={compactNumber(summary.totals.totalNappies)} tone="text-violet-400" helper={percentChange(summary.totals.totalNappies, summary.previous.totalNappies)} />
+        <SummaryCard label="Nappies / Day" value={String(summary.nappiesPerDay)} helper={`${summary.totals.wetTotal} wet, ${summary.totals.dirtyTotal} dirty`} />
+        <SummaryCard label="Wet Total" value={String(summary.totals.wetTotal)} tone="text-blue-400" helper="Includes both" />
+        <SummaryCard label="Dirty Total" value={String(summary.totals.dirtyTotal)} tone="text-orange-400" helper="Includes both" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <SummaryCard label="Pump Sessions" value={compactNumber(summary.totals.pumpCount)} tone="text-emerald-400" helper={percentChange(summary.totals.pumpCount, summary.previous.pumpCount)} />
+      <SummaryCard label="Total Pumped" value={`${compactNumber(summary.totals.pumpMl)} ml`} tone="text-emerald-400" helper={`${summary.totals.pumpMins} min total`} />
+      <SummaryCard label="Avg / Session" value={`${summary.pumpMlPerSession} ml`} helper={`${summary.pumpMinutesPerSession} min avg`} />
+      <SummaryCard label="Total Time" value={formatHours(summary.totals.pumpMins)} helper="Pump duration" />
+    </div>
+  )
+}
+
+function DesktopMetricStrip({ category, summary }: { category: CategoryOption; summary: SummaryModel }) {
+  if (category === 'nappies') {
+    return (
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <SummaryCard label="Total Nappies" value={compactNumber(summary.totals.totalNappies)} tone="text-violet-400" helper={percentChange(summary.totals.totalNappies, summary.previous.totalNappies)} />
+        <SummaryCard label="Nappies / Day" value={String(summary.nappiesPerDay)} helper={`${summary.activeDays} active days`} />
+        <SummaryCard label="Wet Total" value={String(summary.totals.wetTotal)} tone="text-blue-400" helper="Includes both" />
+        <SummaryCard label="Dirty Total" value={String(summary.totals.dirtyTotal)} tone="text-orange-400" helper="Includes both" />
+      </div>
+    )
+  }
+
+  if (category === 'pumps') {
+    return (
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <SummaryCard label="Pump Sessions" value={compactNumber(summary.totals.pumpCount)} tone="text-emerald-400" helper={percentChange(summary.totals.pumpCount, summary.previous.pumpCount)} />
+        <SummaryCard label="Total Pumped" value={`${compactNumber(summary.totals.pumpMl)} ml`} tone="text-emerald-400" helper={percentChange(summary.totals.pumpMl, summary.previous.pumpMl)} />
+        <SummaryCard label="Avg / Session" value={`${summary.pumpMlPerSession} ml`} helper={`${summary.pumpMinutesPerSession} min avg`} />
+        <SummaryCard label="Pumped / Day" value={`${summary.pumpMlPerDay} ml`} helper={formatHours(summary.totals.pumpMins)} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+      <SummaryCard label="Feed Sessions" value={compactNumber(summary.totals.feedSessionCount)} tone="text-emerald-400" helper={percentChange(summary.totals.feedSessionCount, summary.previous.feedSessionCount)} />
+      <SummaryCard label="Total ml Fed" value={`${compactNumber(summary.measuredFedMl)} ml`} tone="text-amber-400" helper={percentChange(summary.measuredFedMl, summary.previousMeasuredFedMl)} />
+      <SummaryCard label="Sessions / Day" value={String(summary.feedSessionsPerDay)} helper={`${summary.totals.feedCount} feed entries`} />
+      <SummaryCard label="Measured ml / Day" value={`${summary.measuredFedMlPerDay} ml`} helper="Formula + expressed" />
+      <SummaryCard label="Avg Gap" value={formatHours(summary.avgGap)} tone="text-sky-400" helper={`Longest ${formatHours(summary.longestGap)}`} />
+    </div>
+  )
+}
+
+function DesktopInsightRail({ category, range, summary }: { category: CategoryOption; range: RangeOption; summary: SummaryModel }) {
+  const selectedDays = range === '1d' ? 1 : range === '7d' ? 7 : 30
+  const highestLabel = summary.highestDay ? `${summary.highestDay.date} · ${activityValue(summary.highestDay, category)}` : '--'
+
+  return (
+    <aside className="flex flex-col gap-3">
+      <section className="rounded-xl border border-muted bg-muted/10 p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-foreground">Range context</h3>
+            <p className="text-sm text-muted-foreground">{rangeLabel(range)}</p>
+          </div>
+          <Moon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <InsightTile label="Active days" value={`${summary.activeDays}/${selectedDays}`} />
+          <InsightTile label="Quiet days" value={String(summary.quietDays)} />
+          <InsightTile label="Highest day" value={highestLabel} helper={category === 'pumps' ? 'Sessions' : 'Events'} />
+          <InsightTile label="Previous" value={category === 'feeds' ? `${summary.previous.feedSessionCount} sessions` : category === 'nappies' ? `${summary.previous.totalNappies} changes` : `${summary.previous.pumpCount} sessions`} />
+        </div>
+      </section>
+
+      {category === 'feeds' && (
+        <section className="rounded-xl border border-muted bg-muted/10 p-4">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold text-foreground">Feed mix</h3>
+              <p className="text-sm text-muted-foreground">Measured ml is formula plus expressed milk.</p>
+            </div>
+            <TrendingUp className="h-4 w-4 text-amber-400" aria-hidden="true" />
+          </div>
+          <div className="flex flex-col gap-3">
+            <ProgressRow label="Formula ml" value={summary.totals.formulaMl} total={Math.max(summary.measuredFedMl, 1)} color="bg-amber-500" />
+            <ProgressRow label="Expressed milk ml" value={summary.totals.breastMilkMl} total={Math.max(summary.measuredFedMl, 1)} color="bg-cyan-500" />
+            <ProgressRow label="Breast minutes" value={summary.totals.breastMins} total={Math.max(summary.totals.breastMins, summary.totals.formulaCount + summary.totals.breastMilkCount, 1)} color="bg-sky-500" />
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <InsightTile label="Formula avg" value={`${summary.formulaPerFeed} ml`} />
+            <InsightTile label="Expressed avg" value={`${summary.breastMilkPerFeed} ml`} />
+          </div>
+        </section>
+      )}
+
+      {category === 'nappies' && (
+        <section className="rounded-xl border border-muted bg-muted/10 p-4">
+          <h3 className="mb-4 text-base font-semibold text-foreground">Nappy breakdown</h3>
+          <div className="flex flex-col gap-3">
+            <ProgressRow label="Wet only" value={summary.totals.wetOnly} total={Math.max(summary.totals.totalNappies, 1)} color="bg-blue-500" />
+            <ProgressRow label="Dirty only" value={summary.totals.dirtyOnly} total={Math.max(summary.totals.totalNappies, 1)} color="bg-orange-500" />
+            <ProgressRow label="Both" value={summary.totals.both} total={Math.max(summary.totals.totalNappies, 1)} color="bg-violet-500" />
+          </div>
+        </section>
+      )}
+
+      {category === 'pumps' && (
+        <section className="rounded-xl border border-muted bg-muted/10 p-4">
+          <h3 className="mb-4 text-base font-semibold text-foreground">Pump output</h3>
+          <div className="grid grid-cols-2 gap-2">
+            <InsightTile label="Total time" value={formatHours(summary.totals.pumpMins)} />
+            <InsightTile label="Avg time" value={`${summary.pumpMinutesPerSession} min`} />
+            <InsightTile label="Total ml" value={`${compactNumber(summary.totals.pumpMl)} ml`} tone="text-emerald-400" />
+            <InsightTile label="Ml / day" value={`${summary.pumpMlPerDay} ml`} />
+          </div>
+        </section>
+      )}
+    </aside>
   )
 }
 
@@ -198,21 +650,17 @@ export function AnalyticsPanel({
     router.replace(`/analytics?${params.toString()}`, { scroll: false })
   }
 
-  const rangeDays = range === '7d' ? 7 : 30
-  const activeDailyData = useMemo(
-    () => data.filter(day => hasDataForView(day, category, feedView)),
-    [category, data, feedView],
-  )
+  const selectedDays = range === '1d' ? 1 : range === '7d' ? 7 : 30
   const chartData = useMemo(
-    () => range === '1d' ? hourlyData : activeDailyData.slice(-rangeDays),
-    [activeDailyData, hourlyData, range, rangeDays],
+    () => range === '1d' ? hourlyData : data.slice(-selectedDays),
+    [data, hourlyData, range, selectedDays],
   )
   const previousData = useMemo(
-    () => range === '1d' ? activeDailyData.slice(-2, -1) : activeDailyData.slice(-(rangeDays * 2), -rangeDays),
-    [activeDailyData, range, rangeDays],
+    () => range === '1d' ? data.slice(-2, -1) : data.slice(-(selectedDays * 2), -selectedDays),
+    [data, range, selectedDays],
   )
 
-  const summary = useMemo(() => {
+  const summary = useMemo<SummaryModel>(() => {
     const totals = sumData(chartData)
     const previous = sumData(previousData)
     const timestamps = feedSessionTimestamps
@@ -228,52 +676,62 @@ export function AnalyticsPanel({
     const gaps = rangeFeedTimes.slice(1).map((value, index) => Math.round((value - rangeFeedTimes[index]) / 60000))
     const avgGap = gaps.length ? Math.round(gaps.reduce((sum, value) => sum + value, 0) / gaps.length) : 0
     const longestGap = gaps.length ? Math.max(...gaps) : 0
+    const activeDays = range === '1d'
+      ? chartData.filter(day => hasDataForView(day, category, feedView)).length
+      : chartData.filter(day => activityValue(day, category) > 0).length
+    const highestDay = chartData.reduce<AnalyticsDataPoint | null>((highest, day) => {
+      if (!highest) return day
+      return activityValue(day, category) > activityValue(highest, category) ? day : highest
+    }, null)
+    const measuredMl = measuredFedMl(totals)
 
     return {
       totals,
       previous,
+      measuredFedMl: measuredMl,
+      previousMeasuredFedMl: measuredFedMl(previous),
       formulaPerFeed: avg(totals.formulaMl, totals.formulaCount),
       breastPerFeed: avg(totals.breastMins, Math.max(totals.breastCount - totals.breastMilkCount, 0)),
       breastMilkPerFeed: avg(totals.breastMilkMl, totals.breastMilkCount),
       pumpMlPerSession: avg(totals.pumpMl, totals.pumpCount),
       pumpMinutesPerSession: avg(totals.pumpMins, totals.pumpCount),
-      feedSessionsPerDay: avg(totals.feedSessionCount, range === '1d' ? 1 : chartData.length, 1),
-      nappiesPerDay: avg(totals.totalNappies, range === '1d' ? 1 : chartData.length, 1),
+      feedSessionsPerDay: avg(totals.feedSessionCount, selectedDays, 1),
+      measuredFedMlPerDay: avg(measuredMl, selectedDays),
+      nappiesPerDay: avg(totals.totalNappies, selectedDays, 1),
+      pumpMlPerDay: avg(totals.pumpMl, selectedDays),
       avgGap,
       longestGap,
+      activeDays,
+      quietDays: Math.max(0, selectedDays - activeDays),
+      highestDay: highestDay && activityValue(highestDay, category) > 0 ? highestDay : null,
     }
-  }, [chartData, feedSessionTimestamps, previousData, range])
+  }, [category, chartData, feedSessionTimestamps, feedView, previousData, range, selectedDays])
 
-  const hasFeedData = summary.totals.feedSessionCount > 0
-  const hasFormulaData = summary.totals.formulaMl > 0
-  const hasBreastData = summary.totals.breastMins > 0 || summary.totals.breastMilkMl > 0
-  const hasNappyData = summary.totals.totalNappies > 0
-  const hasPumpData = summary.totals.pumpCount > 0
   const xInterval = range === '30d' && chartData.length > 12 ? 4 : 0
-  const activeDayLabel = `${chartData.length} active ${chartData.length === 1 ? 'day' : 'days'}`
+  const activeDayLabel = `${summary.activeDays} active ${summary.activeDays === 1 ? 'day' : 'days'}`
   const isCompact = variant === 'compact'
 
   if (!mounted) {
     return (
-      <div className="flex flex-col gap-4 animate-pulse">
+      <div className="flex animate-pulse flex-col gap-4">
         {!isCompact && (
           <div className="flex gap-2">
-            <div className="flex-1 h-10 bg-muted rounded-lg" />
-            <div className="flex-1 h-10 bg-muted rounded-lg" />
+            <div className="h-10 flex-1 rounded-lg bg-muted" />
+            <div className="h-10 flex-1 rounded-lg bg-muted" />
           </div>
         )}
         <div className="grid grid-cols-2 gap-3">
-          <div className="h-24 bg-muted/50 rounded-2xl" />
-          <div className="h-24 bg-muted/50 rounded-2xl" />
+          <div className="h-24 rounded-xl bg-muted/50" />
+          <div className="h-24 rounded-xl bg-muted/50" />
         </div>
-        <div className={isCompact ? 'h-64 bg-muted/30 rounded-2xl' : 'h-80 bg-muted/30 rounded-2xl'} />
+        <div className={isCompact ? 'h-64 rounded-xl bg-muted/30' : 'h-80 rounded-xl bg-muted/30'} />
       </div>
     )
   }
 
-  return (
-    <div className={isCompact ? 'flex flex-col gap-4' : 'flex flex-col gap-6'}>
-      {isCompact && (
+  if (isCompact) {
+    return (
+      <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-foreground">Patterns</h2>
@@ -283,318 +741,89 @@ export function AnalyticsPanel({
             Details
           </a>
         </div>
-      )}
 
-      {!isCompact && <div className="flex justify-between items-center bg-muted/30 p-1 rounded-xl border border-muted/50">
-        {(['1d', '7d', '30d'] as RangeOption[]).map(option => (
-          <button
-            key={option}
-            onClick={() => updateFilters({ range: option })}
-            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
-              range === option ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {option === '1d' ? 'Today' : option === '7d' ? 'Last 7 Days' : 'Last 30 Days'}
-          </button>
-        ))}
-      </div>}
+        <MobileSummaryCards category={category} feedView={feedView} summary={summary} />
 
-      {!isCompact && <div className="flex gap-3">
-        <button
-          onClick={() => updateFilters({ category: 'feeds' })}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border-2 font-bold transition-all ${
-            category === 'feeds'
-              ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-              : 'bg-muted/30 border-muted/50 text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <GlassWater className="w-5 h-5" />
-          Feeds
-        </button>
-        <button
-          onClick={() => updateFilters({ category: 'nappies' })}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border-2 font-bold transition-all ${
-            category === 'nappies'
-              ? 'bg-violet-500/10 border-violet-500/30 text-violet-400'
-              : 'bg-muted/30 border-muted/50 text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Baby className="w-5 h-5" />
-          Nappies
-        </button>
-        <button
-          onClick={() => updateFilters({ category: 'pumps' })}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border-2 font-bold transition-all ${
-            category === 'pumps'
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-              : 'bg-muted/30 border-muted/50 text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Droplets className="w-5 h-5" />
-          Pumps
-        </button>
-      </div>}
-
-      {!isCompact && category === 'feeds' && (
-        <div className="grid grid-cols-3 gap-2 bg-muted/15 p-1 rounded-xl border border-muted/30">
-          {[
-            { value: 'combined', label: 'Count', icon: Layers3, active: 'bg-emerald-500' },
-            { value: 'formula', label: 'Formula', icon: GlassWater, active: 'bg-amber-500' },
-            { value: 'breast', label: 'Breast', icon: Flame, active: 'bg-sky-500' },
-          ].map(option => {
-            const Icon = option.icon
-            return (
-              <button
-                key={option.value}
-                onClick={() => updateFilters({ feedView: option.value as FeedViewOption })}
-                className={`py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                  feedView === option.value ? `${option.active} text-white shadow-sm` : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {option.label}
-              </button>
-            )
-          })}
+        <div className="flex h-72 flex-col justify-center rounded-xl border border-muted/30 bg-muted/20 p-4">
+          <h3 className="mb-4 text-sm font-semibold text-muted-foreground">{chartTitle(category, feedView, summary)}</h3>
+          <div className="h-full flex-1 text-xs">
+            <AnalyticsChart category={category} feedView={feedView} chartData={chartData} summary={summary} xInterval={xInterval} />
+          </div>
         </div>
-      )}
+      </div>
+    )
+  }
 
-      <div className="grid grid-cols-2 gap-3">
-        {category === 'feeds' ? (
-          <>
-            <SummaryCard
-              label="Feed Sessions"
-              value={compactNumber(summary.totals.feedSessionCount)}
-              tone="text-emerald-400"
-              helper={percentChange(summary.totals.feedSessionCount, summary.previous.feedSessionCount)}
-            />
-            <SummaryCard
-              label="Sessions / Day"
-              value={String(summary.feedSessionsPerDay)}
-              helper={`${summary.totals.feedCount} feed entries`}
-            />
-            <SummaryCard
-              label="Avg Gap"
-              value={formatHours(summary.avgGap)}
-              tone="text-sky-400"
-              helper="Between sessions"
-            />
-            <SummaryCard
-              label="Longest Gap"
-              value={formatHours(summary.longestGap)}
-              helper="Within selected range"
-            />
-          </>
-        ) : category === 'nappies' ? (
-          <>
-            <SummaryCard
-              label="Total Nappies"
-              value={compactNumber(summary.totals.totalNappies)}
-              tone="text-violet-400"
-              helper={percentChange(summary.totals.totalNappies, summary.previous.totalNappies)}
-            />
-            <SummaryCard
-              label="Nappies / Day"
-              value={String(summary.nappiesPerDay)}
-              helper={`${summary.totals.wetTotal} wet, ${summary.totals.dirtyTotal} dirty`}
-            />
-            <SummaryCard label="Wet Total" value={String(summary.totals.wetTotal)} tone="text-blue-400" helper="Includes both" />
-            <SummaryCard label="Dirty Total" value={String(summary.totals.dirtyTotal)} tone="text-orange-400" helper="Includes both" />
-          </>
-        ) : (
-          <>
-            <SummaryCard
-              label="Pump Sessions"
-              value={compactNumber(summary.totals.pumpCount)}
-              tone="text-emerald-400"
-              helper={percentChange(summary.totals.pumpCount, summary.previous.pumpCount)}
-            />
-            <SummaryCard
-              label="Total Pumped"
-              value={`${compactNumber(summary.totals.pumpMl)} ml`}
-              tone="text-emerald-400"
-              helper={`${summary.totals.pumpMins} min total`}
-            />
-            <SummaryCard
-              label="Avg / Session"
-              value={`${summary.pumpMlPerSession} ml`}
-              helper={`${summary.pumpMinutesPerSession} min avg`}
-            />
-            <SummaryCard
-              label="Total Time"
-              value={formatHours(summary.totals.pumpMins)}
-              helper="Pump duration"
-            />
-          </>
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3 lg:hidden">
+        <RangeFilters range={range} updateFilters={updateFilters} />
+        <CategoryFilters category={category} updateFilters={updateFilters} />
+        {category === 'feeds' && <FeedViewFilters feedView={feedView} updateFilters={updateFilters} />}
+        <MobileSummaryCards category={category} feedView={feedView} summary={summary} />
+        <div className="flex h-80 flex-col justify-center rounded-xl border border-muted/30 bg-muted/20 p-4">
+          <h3 className="mb-4 text-sm font-semibold text-muted-foreground">{chartTitle(category, feedView, summary)}</h3>
+          <div className="h-full flex-1 text-xs">
+            <AnalyticsChart category={category} feedView={feedView} chartData={chartData} summary={summary} xInterval={xInterval} />
+          </div>
+        </div>
+        {category === 'feeds' && (
+          <div className="grid grid-cols-2 gap-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 rounded-xl border border-muted/30 bg-muted/10 p-3">
+              <Clock3 className="h-4 w-4 text-sky-400" />
+              <span>Previous period: {summary.previous.feedSessionCount} sessions</span>
+            </div>
+            <div className="flex items-center gap-2 rounded-xl border border-muted/30 bg-muted/10 p-3">
+              <Droplets className="h-4 w-4 text-violet-400" />
+              <span>{range === '1d' ? 'Today' : activeDayLabel}</span>
+            </div>
+          </div>
         )}
       </div>
 
-      {!isCompact && category === 'feeds' && feedView !== 'combined' && (
-        <div className="grid grid-cols-2 gap-3">
-          <SummaryCard
-            label={feedView === 'formula' ? 'Total Formula' : 'Total Duration'}
-            value={feedView === 'formula' ? `${compactNumber(summary.totals.formulaMl)} ml` : `${compactNumber(summary.totals.breastMins)} min`}
-            tone={feedView === 'formula' ? 'text-amber-400' : 'text-sky-400'}
-          />
-          <SummaryCard
-            label={feedView === 'formula' ? 'Avg / Bottle' : 'Avg / Feed'}
-            value={feedView === 'formula' ? `${summary.formulaPerFeed} ml` : `${summary.breastPerFeed} min`}
-          />
-          {feedView === 'breast' && summary.totals.breastMilkMl > 0 && (
-            <>
-              <SummaryCard
-                label="Expressed Milk"
-                value={`${compactNumber(summary.totals.breastMilkMl)} ml`}
-                tone="text-cyan-400"
-              />
-              <SummaryCard
-                label="Avg / Bottle"
-                value={`${summary.breastMilkPerFeed} ml`}
-              />
-            </>
-          )}
+      <div className="hidden flex-col gap-4 lg:flex">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-foreground">Analytics</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {rangeLabel(range)} · {category === 'feeds' ? 'Feed patterns' : category === 'nappies' ? 'Nappy patterns' : 'Pump output'}
+            </p>
+          </div>
+          <RangeFilters range={range} updateFilters={updateFilters} />
         </div>
-      )}
 
-      <div className={`bg-muted/20 border border-muted/30 rounded-2xl p-4 flex flex-col justify-center ${isCompact ? 'h-72' : 'h-80'}`}>
-        <h3 className="text-sm font-semibold text-muted-foreground mb-4">
-          {category === 'feeds'
-            ? feedView === 'combined'
-              ? 'Feed sessions over time'
-              : feedView === 'formula'
-                ? 'Formula volume over time'
-                : summary.totals.breastMins > 0
-                  ? 'Breast feed minutes over time'
-                  : 'Expressed breast milk over time'
-            : category === 'nappies'
-              ? 'Nappy changes breakdown'
-              : 'Pump volume over time'}
-        </h3>
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(280px,360px)] gap-4">
+          <div className="flex flex-col gap-4">
+            <CategoryFilters category={category} updateFilters={updateFilters} />
+            {category === 'feeds' && <FeedViewFilters feedView={feedView} updateFilters={updateFilters} />}
+            <DesktopMetricStrip category={category} summary={summary} />
 
-        <div className="flex-1 w-full h-full text-xs">
-          {category === 'feeds' && feedView === 'combined' && (
-            hasFeedData ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                  <XAxis dataKey="date" interval={xInterval} stroke="currentColor" className="text-muted-foreground" tickLine={false} />
-                  <YAxis allowDecimals={false} stroke="currentColor" className="text-muted-foreground" tickLine={false} axisLine={false} />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Bar dataKey="feedSessionCount" name="Sessions" fill="#10b981" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : <EmptyChart label="No feeds logged in this range yet." />
-          )}
+            <section className="flex min-h-[440px] flex-col rounded-xl border border-muted bg-muted/10 p-4">
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground">{chartTitle(category, feedView, summary)}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {category === 'feeds'
+                      ? `${compactNumber(summary.totals.feedSessionCount)} sessions · ${compactNumber(summary.measuredFedMl)} ml measured`
+                      : category === 'nappies'
+                        ? `${compactNumber(summary.totals.totalNappies)} changes · ${summary.nappiesPerDay} per day`
+                        : `${compactNumber(summary.totals.pumpMl)} ml · ${summary.totals.pumpCount} sessions`}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-muted/60 bg-background/50 px-3 py-2 text-right text-xs text-muted-foreground">
+                  <p className="font-semibold text-foreground">{activeDayLabel}</p>
+                  <p>{summary.quietDays} quiet {summary.quietDays === 1 ? 'day' : 'days'}</p>
+                </div>
+              </div>
+              <div className="min-h-0 flex-1 text-xs">
+                <AnalyticsChart category={category} feedView={feedView} chartData={chartData} summary={summary} xInterval={xInterval} desktop />
+              </div>
+            </section>
+          </div>
 
-          {category === 'feeds' && feedView === 'formula' && (
-            hasFormulaData ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorFormula" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                  <XAxis dataKey="date" interval={xInterval} stroke="currentColor" className="text-muted-foreground" tickLine={false} />
-                  <YAxis stroke="currentColor" className="text-muted-foreground" tickLine={false} axisLine={false} />
-                  <Tooltip content={<ChartTooltip unit="ml" />} cursor={{ stroke: 'rgba(245,158,11,0.2)', strokeWidth: 1 }} />
-                  <Area type="monotone" dataKey="formulaMl" name="Formula" stroke="#f59e0b" strokeWidth={2} fillOpacity={1} fill="url(#colorFormula)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : <EmptyChart label="No formula feeds logged in this range yet." />
-          )}
-
-          {category === 'feeds' && feedView === 'breast' && (
-            hasBreastData ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorBreast" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                  <XAxis dataKey="date" interval={xInterval} stroke="currentColor" className="text-muted-foreground" tickLine={false} />
-                  <YAxis stroke="currentColor" className="text-muted-foreground" tickLine={false} axisLine={false} />
-                  <Tooltip content={<ChartTooltip unit={summary.totals.breastMins > 0 ? 'mins' : 'ml'} />} cursor={{ stroke: 'rgba(14,165,233,0.2)', strokeWidth: 1 }} />
-                  <Area
-                    type="monotone"
-                    dataKey={summary.totals.breastMins > 0 ? 'breastMins' : 'breastMilkMl'}
-                    name={summary.totals.breastMins > 0 ? 'Breast Duration' : 'Breast Milk'}
-                    stroke={summary.totals.breastMins > 0 ? '#0ea5e9' : '#06b6d4'}
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#colorBreast)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : <EmptyChart label="No breast feeds logged in this range yet." />
-          )}
-
-          {category === 'nappies' && (
-            hasNappyData ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                  <XAxis dataKey="date" interval={xInterval} stroke="currentColor" className="text-muted-foreground" tickLine={false} />
-                  <YAxis allowDecimals={false} stroke="currentColor" className="text-muted-foreground" tickLine={false} axisLine={false} />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Bar dataKey="wetOnly" name="Wet only" stackId="nappy" fill="#3b82f6" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="dirtyOnly" name="Dirty only" stackId="nappy" fill="#f97316" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="both" name="Both" stackId="nappy" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : <EmptyChart label="No nappies logged in this range yet." />
-          )}
-
-          {category === 'pumps' && (
-            hasPumpData ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                  <XAxis dataKey="date" interval={xInterval} stroke="currentColor" className="text-muted-foreground" tickLine={false} />
-                  <YAxis stroke="currentColor" className="text-muted-foreground" tickLine={false} axisLine={false} />
-                  <Tooltip content={<ChartTooltip unit="ml" />} />
-                  <Bar dataKey="pumpMl" name="Pumped" fill="#10b981" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : <EmptyChart label="No pump sessions logged in this range yet." />
-          )}
+          <DesktopInsightRail category={category} range={range} summary={summary} />
         </div>
       </div>
-
-      {!isCompact && category === 'nappies' && (
-        <div className="flex flex-wrap justify-center gap-3 bg-muted/10 p-3 rounded-xl border border-muted/30 text-xs">
-          <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 bg-blue-500 rounded-sm" />
-            <span className="text-muted-foreground">Wet only ({summary.totals.wetOnly})</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 bg-orange-500 rounded-sm" />
-            <span className="text-muted-foreground">Dirty only ({summary.totals.dirtyOnly})</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 bg-purple-500 rounded-sm" />
-            <span className="text-muted-foreground">Both ({summary.totals.both})</span>
-          </div>
-        </div>
-      )}
-
-      {!isCompact && category === 'feeds' && (
-        <div className="grid grid-cols-2 gap-3 text-xs text-muted-foreground">
-          <div className="flex items-center gap-2 rounded-xl border border-muted/30 bg-muted/10 p-3">
-            <Clock3 className="h-4 w-4 text-sky-400" />
-            <span>Previous period: {summary.previous.feedSessionCount} sessions</span>
-          </div>
-          <div className="flex items-center gap-2 rounded-xl border border-muted/30 bg-muted/10 p-3">
-            <Droplets className="h-4 w-4 text-violet-400" />
-            <span>{range === '1d' ? 'Today' : activeDayLabel}</span>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

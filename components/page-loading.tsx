@@ -101,13 +101,18 @@ export function HistoryLoadingBody() {
 export function AnalyticsLoadingBody() {
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex justify-between gap-2 rounded-xl border border-muted/50 bg-muted/30 p-1">
+      <div className="flex justify-between gap-2 rounded-xl border border-muted/50 bg-muted/30 p-1 lg:ml-auto lg:w-[360px]">
         {Array.from({ length: 3 }, (_, index) => (
           <Skeleton key={index} className="h-9 flex-1 rounded-lg" />
         ))}
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        {Array.from({ length: 4 }, (_, index) => (
+      <div className="hidden grid-cols-3 gap-2 lg:grid">
+        {Array.from({ length: 3 }, (_, index) => (
+          <Skeleton key={index} className="h-12 rounded-xl" />
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        {Array.from({ length: 5 }, (_, index) => (
           <div key={index} className="rounded-2xl bg-muted/30 border border-muted/50 p-4">
             <Skeleton className="h-3 w-20" />
             <Skeleton className="mt-3 h-7 w-16" />
@@ -115,12 +120,26 @@ export function AnalyticsLoadingBody() {
           </div>
         ))}
       </div>
-      <div className="rounded-2xl bg-muted/30 border border-muted/50 p-4">
-        <div className="mb-4 flex items-center justify-between">
-          <Skeleton className="h-5 w-28" />
-          <Skeleton className="h-8 w-20 rounded-lg" />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
+        <div className="rounded-2xl bg-muted/30 border border-muted/50 p-4">
+          <div className="mb-4 flex items-center justify-between">
+            <Skeleton className="h-5 w-36" />
+            <Skeleton className="h-10 w-24 rounded-lg" />
+          </div>
+          <Skeleton className="h-72 rounded-xl lg:h-[360px]" />
         </div>
-        <Skeleton className="h-72 rounded-xl" />
+        <div className="hidden flex-col gap-3 lg:flex">
+          {Array.from({ length: 3 }, (_, sectionIndex) => (
+            <div key={sectionIndex} className="rounded-xl border border-muted bg-muted/20 p-4">
+              <Skeleton className="h-5 w-28" />
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                {Array.from({ length: 4 }, (_, itemIndex) => (
+                  <Skeleton key={itemIndex} className="h-16 rounded-lg" />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

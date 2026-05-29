@@ -5,6 +5,11 @@ import { jwtVerify, SignJWT } from 'jose'
 const COOKIE_NAME = 'babytracker_session'
 const THIRTY_DAYS_SECONDS = 60 * 60 * 24 * 30
 
+export interface SessionUser {
+  householdId: string
+  username: string | null
+}
+
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET
 
@@ -15,16 +20,16 @@ function getJwtSecret() {
   return new TextEncoder().encode(secret)
 }
 
-export async function signSession(householdId: string) {
-  return new SignJWT({ sub: householdId })
+export async function signSession(householdId: string, username?: string | null) {
+  return new SignJWT(username ? { sub: householdId, username } : { sub: householdId })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('30d')
     .sign(getJwtSecret())
 }
 
-export async function setSessionCookie(householdId: string) {
-  const token = await signSession(householdId)
+export async function setSessionCookie(householdId: string, username?: string | null) {
+  const token = await signSession(householdId, username)
   const cookieStore = await cookies()
 
   cookieStore.set(COOKIE_NAME, token, {
@@ -47,7 +52,7 @@ export async function clearSessionCookie() {
   })
 }
 
-export async function getSessionHouseholdId() {
+export async function getSessionUser(): Promise<SessionUser | null> {
   const cookieStore = await cookies()
   const token = cookieStore.get(COOKIE_NAME)?.value
 
@@ -55,10 +60,18 @@ export async function getSessionHouseholdId() {
 
   try {
     const { payload } = await jwtVerify(token, getJwtSecret())
-    return typeof payload.sub === 'string' ? payload.sub : null
+    if (typeof payload.sub !== 'string') return null
+    return {
+      householdId: payload.sub,
+      username: typeof payload.username === 'string' ? payload.username : null,
+    }
   } catch {
     return null
   }
+}
+
+export async function getSessionHouseholdId() {
+  return (await getSessionUser())?.householdId ?? null
 }
 
 export async function requireSessionHouseholdId() {
@@ -69,4 +82,14 @@ export async function requireSessionHouseholdId() {
   }
 
   return householdId
+}
+
+export async function requireSessionUser() {
+  const session = await getSessionUser()
+
+  if (!session) {
+    redirect('/login')
+  }
+
+  return session
 }

@@ -16,7 +16,6 @@ export interface HouseholdMeta {
   babyName?: string
   babyDob?: string
   feedingIntervalMinutes?: number
-  hasSignInAccount?: boolean
 }
 
 interface StoredHouseholdData {
@@ -174,9 +173,9 @@ export async function setHouseholdData<K extends keyof StoredHouseholdData>(
   await getJsonStore().set(householdDataKey(householdId, type), value)
 }
 
-export async function initializeHousehold(householdId: string, inviteCode: string, hasSignInAccount = false) {
+export async function initializeHousehold(householdId: string, inviteCode: string) {
   await Promise.all([
-    setHouseholdMeta(householdId, { inviteCode, hasSignInAccount }),
+    setHouseholdMeta(householdId, { inviteCode }),
     setHouseholdData(householdId, 'feeds', []),
     setHouseholdData(householdId, 'nappies', []),
     setHouseholdData(householdId, 'pumps', []),

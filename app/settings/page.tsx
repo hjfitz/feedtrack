@@ -1,10 +1,11 @@
 import { AppShell } from '@/components/app-shell'
 import { SettingsPanel } from '@/components/settings-panel'
 import { getHouseholdMeta } from '@/lib/server/blob-storage'
-import { requireSessionHouseholdId } from '@/lib/server/auth'
+import { requireSessionUser } from '@/lib/server/auth'
 
 export default async function SettingsPage() {
-  const householdId = await requireSessionHouseholdId()
+  const session = await requireSessionUser()
+  const householdId = session.householdId
   const meta = await getHouseholdMeta(householdId)
 
   return (
@@ -14,7 +15,7 @@ export default async function SettingsPage() {
         babyName={meta?.babyName || ''}
         babyDob={meta?.babyDob || ''}
         feedingIntervalMinutes={meta?.feedingIntervalMinutes || ''}
-        hasSignInAccount={Boolean(meta?.hasSignInAccount)}
+        isAccountSession={Boolean(session.username)}
       />
     </AppShell>
   )

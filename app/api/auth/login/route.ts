@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   const body = await parseJsonBody<LoginBody>(request)
   try {
     const result = await loginUser(body?.username || '', body?.password || '')
-    await setSessionCookie(result.householdId)
+    await setSessionCookie(result.householdId, result.username)
     return NextResponse.json(result)
   } catch (error) {
     if (error instanceof AppError) return jsonError(error.message, error.status)
