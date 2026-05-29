@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   ResponsiveContainer,
@@ -11,7 +12,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from 'recharts'
-import { Check, Droplets, Pencil, Trash2, X } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Droplets, Pencil, Trash2, X } from 'lucide-react'
 import {
   addFeedAction,
   addNappyAction,
@@ -43,6 +44,14 @@ const BREAST_PRESETS = [5, 10, 15, 20, 25, 30]
 const BOTTLE_PRESETS = [30, 60, 90, 120, 150, 180]
 
 type FeedKind = 'breast' | 'expressed' | 'formula'
+
+interface DayNavigation {
+  label: string
+  selectedKey: string
+  isToday: boolean
+  previousHref: string
+  nextHref: string | null
+}
 
 function formatTimeSince(date: Date | null, now: Date): string {
   if (!date) return '--'
@@ -85,7 +94,7 @@ function feedDueInfo(lastFeed: FeedEntry | null, feedingIntervalMinutes: number 
 
   return {
     status: minutesUntil <= 30 ? 'soon' as const : 'later' as const,
-    value: `${formatSummaryMinutes(minutesUntil)} left`,
+    value: formatSummaryMinutes(minutesUntil),
     helper: `Due ${formatAppTime(dueAt)}`,
   }
 }
@@ -684,13 +693,13 @@ function PumpActivityRow({ pump, onChanged }: { pump: PumpEntry; onChanged: () =
   )
 }
 
-function RecentActivity({ items, onChanged }: { items: HistoryItem[]; onChanged: () => void }) {
+function RecentActivity({ items, onChanged, dayLabel }: { items: HistoryItem[]; onChanged: () => void; dayLabel: string }) {
   return (
     <section className="rounded-xl border border-muted bg-muted/10 p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Recent activity</h2>
-          <p className="text-sm text-muted-foreground">Last 24 hours</p>
+          <p className="text-sm text-muted-foreground">{dayLabel}</p>
         </div>
         <a href="/history?type=all&range=24h" className="text-sm font-medium text-muted-foreground hover:text-foreground">
           Details
@@ -704,7 +713,7 @@ function RecentActivity({ items, onChanged }: { items: HistoryItem[]; onChanged:
       </div>
       <div className="max-h-[360px] overflow-y-auto">
         {items.length === 0 ? (
-          <div className="py-10 text-center text-sm text-muted-foreground">No entries in the last 24 hours</div>
+          <div className="py-10 text-center text-sm text-muted-foreground">No entries for this day</div>
         ) : (
           items.map(item => item.type === 'feed'
             ? <FeedActivityRow key={item.id} feed={item.data as FeedEntry} onChanged={onChanged} />
@@ -723,6 +732,7 @@ export function DesktopHomePanel({
   history,
   analytics,
   feedingIntervalMinutes,
+  dayNavigation,
 }: {
   overview: {
     lastFeed: FeedEntry | null
@@ -737,6 +747,7 @@ export function DesktopHomePanel({
     data: AnalyticsDataPoint[]
   }
   feedingIntervalMinutes?: number
+  dayNavigation: DayNavigation
 }) {
   const router = useRouter()
   const [pendingKey, setPendingKey] = useState<string | null>(null)
@@ -813,6 +824,28 @@ export function DesktopHomePanel({
 
   return (
     <div className="hidden min-h-[calc(100vh-11rem)] gap-4 lg:grid">
+      <section className="flex items-center justify-between gap-4 rounded-xl border border-muted bg-muted/10 p-3">
+        <Link href={dayNavigation.previousHref} className="inline-flex h-10 items-center gap-2 rounded-lg border border-muted/60 bg-background/60 px-3 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground" aria-label="Previous day">
+          <ChevronLeft className="h-4 w-4" />
+          Back
+        </Link>
+        <div className="text-center">
+          <p className="text-lg font-semibold text-foreground">{dayNavigation.label}</p>
+          <p className="text-xs tabular-nums text-muted-foreground">{dayNavigation.selectedKey}</p>
+        </div>
+        {dayNavigation.nextHref ? (
+          <Link href={dayNavigation.nextHref} className="inline-flex h-10 items-center gap-2 rounded-lg border border-muted/60 bg-background/60 px-3 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground" aria-label="Next day">
+            Forward
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+        ) : (
+          <span className="inline-flex h-10 items-center gap-2 rounded-lg border border-muted/40 bg-muted/10 px-3 text-sm font-semibold text-muted-foreground/35" aria-hidden="true">
+            Forward
+            <ChevronRight className="h-4 w-4" />
+          </span>
+        )}
+      </section>
+
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-6">
         <StatTile
           label="Next feed"
@@ -822,9 +855,9 @@ export function DesktopHomePanel({
         />
         <StatTile label="Since nappy" value={formatTimeSince(overview.lastNappy?.timestamp ?? null, now)} helper={overview.lastNappy ? `${nappyLabel(overview.lastNappy)} nappy` : undefined} />
         <StatTile label="Since pump" value={formatTimeSince(overview.lastPump?.timestamp ?? null, now)} helper={overview.lastPump ? pumpDetail(overview.lastPump) : undefined} />
-        <StatTile label="Today feeds" value={String(todaySummary.feedSessionCount)} helper={`${todaySummary.feedCount} feed entries`} />
-        <StatTile label="Today nappies" value={String(todaySummary.nappyCount)} helper={`${todaySummary.wetCount} wet, ${todaySummary.dirtyCount} dirty`} />
-        <StatTile label="Today pump" value={`${todaySummary.totalPumpMl}ml`} helper={`${todaySummary.pumpCount} sessions, ${todaySummary.totalPumpMinutes}m`} />
+        <StatTile label={dayNavigation.isToday ? 'Today feeds' : 'Day feeds'} value={String(todaySummary.feedSessionCount)} helper={`${todaySummary.feedCount} feed entries`} />
+        <StatTile label={dayNavigation.isToday ? 'Today nappies' : 'Day nappies'} value={String(todaySummary.nappyCount)} helper={`${todaySummary.wetCount} wet, ${todaySummary.dirtyCount} dirty`} />
+        <StatTile label={dayNavigation.isToday ? 'Today pump' : 'Day pump'} value={`${todaySummary.totalPumpMl}ml`} helper={`${todaySummary.pumpCount} sessions, ${todaySummary.totalPumpMinutes}m`} />
       </section>
 
       {message && (
@@ -841,7 +874,7 @@ export function DesktopHomePanel({
         <CompactAnalytics data={analytics.data} />
       </div>
 
-      <RecentActivity items={history.items} onChanged={refresh} />
+      <RecentActivity items={history.items} onChanged={refresh} dayLabel={dayNavigation.label} />
     </div>
   )
 }

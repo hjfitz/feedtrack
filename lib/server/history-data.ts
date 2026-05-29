@@ -1,5 +1,5 @@
 import { getFeeds, getNappies, getPumps } from '@/lib/server/tracker'
-import { appDateKey, formatAppDate, startOfAppDay } from '@/lib/timezone'
+import { addAppDays, appDateKey, formatAppDate, startOfAppDay } from '@/lib/timezone'
 import type { FeedEntry, NappyEntry, PumpEntry } from '@/lib/types'
 import type { FilterType, TimeRange } from '@/components/history-panel'
 
@@ -71,5 +71,28 @@ export async function getHistoryPanelData(householdId: string, type: FilterType,
     type,
     range,
     exportHref,
+  }
+}
+
+export async function getHistoryDayData(householdId: string, date: Date) {
+  const start = startOfAppDay(date)
+  const end = addAppDays(start, 1)
+  const [feeds, nappies, pumps] = await Promise.all([
+    getFeeds(householdId, start),
+    getNappies(householdId, start),
+    getPumps(householdId, start),
+  ])
+  const items: HistoryItem[] = [
+    ...feeds.filter(feed => new Date(feed.timestamp) < end).map(feed => ({ id: feed.id, type: 'feed' as const, timestamp: new Date(feed.timestamp), data: feed })),
+    ...nappies.filter(nappy => new Date(nappy.timestamp) < end).map(nappy => ({ id: nappy.id, type: 'nappy' as const, timestamp: new Date(nappy.timestamp), data: nappy })),
+    ...pumps.filter(pump => new Date(pump.timestamp) < end).map(pump => ({ id: pump.id, type: 'pump' as const, timestamp: new Date(pump.timestamp), data: pump })),
+  ].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+
+  return {
+    items,
+    groupedItems: groupHistoryItems(items),
+    type: 'all' as const,
+    range: 'today' as const,
+    exportHref: `/api/export?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`,
   }
 }

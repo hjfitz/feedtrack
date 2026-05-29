@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
+import Link from 'next/link'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { addFeedAction, addNappyAction, addPumpAction } from '@/app/actions/tracker'
 import {
   Dialog,
@@ -59,7 +61,7 @@ function feedDueInfo(lastFeed: FeedEntry | null, feedingIntervalMinutes: number 
 
   return {
     status: minutesUntil <= 30 ? 'soon' as const : 'later' as const,
-    countdown: `${formatSummaryMinutes(minutesUntil)} left`,
+    countdown: formatSummaryMinutes(minutesUntil),
     dueLabel: `Due ${formatAppTime(dueAt)}`,
   }
 }
@@ -72,6 +74,14 @@ const PUMP_VOLUME_PRESETS = [30, 60, 90, 120, 150, 180]
 
 type QuickLogMode = 'home' | 'breast' | 'expressed' | 'formula' | 'pump'
 type ConfirmationType = 'breast' | 'expressed' | 'formula' | 'pump' | 'wet' | 'dirty' | 'both' | null
+
+interface DayNavigation {
+  label: string
+  selectedKey: string
+  isToday: boolean
+  previousHref: string
+  nextHref: string | null
+}
 
 function formatFeedDetail(feed: FeedEntry) {
   if (feed.type === 'formula') return `Formula ${feed.volumeMl || 0}ml`
@@ -89,12 +99,14 @@ export function HomePanel({
   lastPump,
   summary,
   feedingIntervalMinutes,
+  dayNavigation,
 }: {
   lastFeed: FeedEntry | null
   lastNappy: NappyEntry | null
   lastPump: PumpEntry | null
   summary: DailySummary
   feedingIntervalMinutes?: number
+  dayNavigation: DayNavigation
 }) {
   const [mode, setMode] = useState<QuickLogMode>('home')
   const [confirmation, setConfirmation] = useState<ConfirmationType>(null)
@@ -413,6 +425,24 @@ export function HomePanel({
 
     return (
       <div className="flex flex-col gap-6">
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-muted/60 bg-muted/20 p-2">
+          <Link href={dayNavigation.previousHref} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-background hover:text-foreground" aria-label="Previous day">
+            <ChevronLeft className="h-5 w-5" />
+          </Link>
+          <div className="min-w-0 text-center">
+            <p className="truncate text-base font-semibold text-foreground">{dayNavigation.label}</p>
+            <p className="text-xs tabular-nums text-muted-foreground">{dayNavigation.selectedKey}</p>
+          </div>
+          {dayNavigation.nextHref ? (
+            <Link href={dayNavigation.nextHref} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-background hover:text-foreground" aria-label="Next day">
+              <ChevronRight className="h-5 w-5" />
+            </Link>
+          ) : (
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground/30" aria-hidden="true">
+              <ChevronRight className="h-5 w-5" />
+            </span>
+          )}
+        </div>
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <div className={`min-w-0 rounded-2xl p-3 text-center border transition-colors sm:p-4 ${feedCardClass}`}>
             <p className={`mb-1 text-[10px] font-semibold uppercase tracking-wide sm:text-xs ${feedLabelClass}`}>Feed</p>
@@ -433,7 +463,7 @@ export function HomePanel({
         </div>
         <div className="rounded-2xl bg-muted/30 p-4 border border-muted/50">
           <div className="mb-3 flex items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">Today</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">{dayNavigation.isToday ? 'Today' : 'Selected day'}</p>
             <p className="text-xs font-semibold text-emerald-400 tabular-nums">
               {summary.feedSessionCount} feed {summary.feedSessionCount === 1 ? 'session' : 'sessions'}
             </p>
@@ -521,7 +551,7 @@ export function HomePanel({
         </div>
       </div>
     )
-  }, [canLogCustomBreast, canLogCustomExpressed, canLogCustomFormula, canLogPump, customBreastMinutes, customBreastValue, customExpressedMl, customExpressedValue, customFormulaMl, customFormulaValue, feedCardClass, feedLabelClass, feedTimestamp, feedingIntervalMinutes, isLogging, lastFeed, lastNappy, lastPump, mode, nextFeed, now, pumpMinutes, pumpMl, pumpTimestamp, summary])
+  }, [canLogCustomBreast, canLogCustomExpressed, canLogCustomFormula, canLogPump, customBreastMinutes, customBreastValue, customExpressedMl, customExpressedValue, customFormulaMl, customFormulaValue, dayNavigation, feedCardClass, feedLabelClass, feedTimestamp, feedingIntervalMinutes, isLogging, lastFeed, lastNappy, lastPump, mode, nextFeed, now, pumpMinutes, pumpMl, pumpTimestamp, summary])
 
   return (
     <>

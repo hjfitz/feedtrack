@@ -15,7 +15,7 @@ import {
   setUser,
 } from '@/lib/server/blob-storage'
 import { calculateSummary } from '@/lib/server/summaries'
-import { parseAppDateTimeLocal, startOfAppDay } from '@/lib/timezone'
+import { addAppDays, parseAppDateTimeLocal, startOfAppDay } from '@/lib/timezone'
 import type { DailySummary, FeedEntry, FeedType, NappyEntry, NappyType, PumpEntry } from '@/lib/types'
 
 const INVITE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -93,6 +93,17 @@ export async function getTodaySummary(householdId: string): Promise<DailySummary
   return calculateSummary(feeds, nappies, pumps, start, now, now)
 }
 
+export async function getDaySummary(householdId: string, date: Date): Promise<DailySummary> {
+  const start = startOfAppDay(date)
+  const end = new Date(addAppDays(start, 1).getTime() - 1)
+  const [feeds, nappies, pumps] = await Promise.all([
+    getHouseholdData(householdId, 'feeds'),
+    getHouseholdData(householdId, 'nappies'),
+    getHouseholdData(householdId, 'pumps'),
+  ])
+  return calculateSummary(feeds, nappies, pumps, start, end, start)
+}
+
 export async function getHoursSummary(householdId: string, hours: number): Promise<DailySummary> {
   const now = new Date()
   const start = new Date(now.getTime() - Math.max(hours, 1) * 60 * 60 * 1000)
@@ -104,12 +115,12 @@ export async function getHoursSummary(householdId: string, hours: number): Promi
   return calculateSummary(feeds, nappies, pumps, start, now, now)
 }
 
-export async function getOverviewData(householdId: string) {
+export async function getOverviewData(householdId: string, date?: Date) {
   const [feeds, nappies, pumps, summary] = await Promise.all([
     getFeeds(householdId),
     getNappies(householdId),
     getPumps(householdId),
-    getTodaySummary(householdId),
+    date ? getDaySummary(householdId, date) : getTodaySummary(householdId),
   ])
 
   return {

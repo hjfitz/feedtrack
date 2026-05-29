@@ -62,6 +62,22 @@ export function parseAppDateTimeLocal(value: string) {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+export function parseAppDateKey(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return null
+
+  const [, year, month, day] = match
+  const date = zonedDateTimeToDate({
+    year: Number(year),
+    month: Number(month),
+    day: Number(day),
+    hour: 0,
+    minute: 0,
+  })
+
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 export function formatAppDateTimeLocal(date: Date) {
   const parts = getZonedParts(date)
   const pad = (value: number) => String(value).padStart(2, '0')

@@ -4,14 +4,35 @@ import { HomePanel } from '@/components/home-panel'
 import { requireSessionHouseholdId } from '@/lib/server/auth'
 import { getHouseholdMeta } from '@/lib/server/blob-storage'
 import { getAnalyticsPanelData } from '@/lib/server/analytics-data'
-import { getHistoryPanelData } from '@/lib/server/history-data'
+import { getHistoryDayData } from '@/lib/server/history-data'
 import { getOverviewData } from '@/lib/server/tracker'
+import { addAppDays, appDateKey, formatAppDate, parseAppDateKey, startOfAppDay } from '@/lib/timezone'
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string }>
+}) {
   const householdId = await requireSessionHouseholdId()
+  const params = await searchParams
+  const today = startOfAppDay()
+  const todayKey = appDateKey(today)
+  const requestedDate = params.date ? parseAppDateKey(params.date) : null
+  const selectedDate = requestedDate && appDateKey(requestedDate) <= todayKey ? requestedDate : today
+  const selectedKey = appDateKey(selectedDate)
+  const isToday = selectedKey === todayKey
+  const previousKey = appDateKey(addAppDays(selectedDate, -1))
+  const nextKey = appDateKey(addAppDays(selectedDate, 1))
+  const dayNavigation = {
+    label: isToday ? 'Today' : formatAppDate(selectedDate, { weekday: 'long', day: 'numeric', month: 'long' }),
+    selectedKey,
+    isToday,
+    previousHref: `/?date=${previousKey}`,
+    nextHref: isToday ? null : nextKey === todayKey ? '/' : `/?date=${nextKey}`,
+  }
   const [data, historyData, analyticsData, meta] = await Promise.all([
-    getOverviewData(householdId),
-    getHistoryPanelData(householdId, 'all', '24h'),
+    getOverviewData(householdId, selectedDate),
+    getHistoryDayData(householdId, selectedDate),
     getAnalyticsPanelData(householdId),
     getHouseholdMeta(householdId),
   ])
@@ -19,13 +40,14 @@ export default async function HomePage() {
   return (
     <AppShell babyName={meta?.babyName} babyDob={meta?.babyDob}>
       <div className="lg:hidden">
-        <HomePanel {...data} feedingIntervalMinutes={meta?.feedingIntervalMinutes} />
+        <HomePanel {...data} feedingIntervalMinutes={meta?.feedingIntervalMinutes} dayNavigation={dayNavigation} />
       </div>
       <DesktopHomePanel
         overview={data}
         history={historyData}
         analytics={analyticsData}
         feedingIntervalMinutes={meta?.feedingIntervalMinutes}
+        dayNavigation={dayNavigation}
       />
     </AppShell>
   )

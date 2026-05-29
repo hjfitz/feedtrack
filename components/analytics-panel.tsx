@@ -70,12 +70,12 @@ function formatHours(minutes: number) {
   return mins ? `${hours}h ${mins}m` : `${hours}h`
 }
 
-function percentChange(current: number, previous: number) {
+function percentChange(current: number, previous: number, label = 'previous') {
   if (!previous && !current) return 'No change'
   if (!previous) return 'New activity'
   const change = Math.round(((current - previous) / previous) * 100)
   if (change === 0) return 'No change'
-  return `${change > 0 ? '+' : ''}${change}% vs previous`
+  return `${change > 0 ? '+' : ''}${change}% vs ${label}`
 }
 
 function avg(total: number, count: number, precision = 0) {
@@ -270,6 +270,46 @@ function ProgressRow({
   )
 }
 
+function TodayComparison({ summary }: { summary: SummaryModel }) {
+  return (
+    <section className="rounded-xl border border-muted bg-muted/10 p-4">
+      <div className="mb-3">
+        <h3 className="text-base font-semibold text-foreground">Today vs yesterday</h3>
+        <p className="text-sm text-muted-foreground">A quick comparison for the day so far.</p>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <InsightTile label="Feed sessions" value={percentChange(summary.totals.feedSessionCount, summary.previous.feedSessionCount, 'yesterday')} helper={`${summary.previous.feedSessionCount} yesterday`} tone="text-emerald-400" />
+        <InsightTile label="Measured ml" value={percentChange(summary.measuredFedMl, summary.previousMeasuredFedMl, 'yesterday')} helper={`${compactNumber(summary.previousMeasuredFedMl)} ml yesterday`} tone="text-amber-400" />
+        <InsightTile label="Nappies" value={percentChange(summary.totals.totalNappies, summary.previous.totalNappies, 'yesterday')} helper={`${summary.previous.totalNappies} yesterday`} tone="text-violet-400" />
+        <InsightTile label="Pump output" value={percentChange(summary.totals.pumpMl, summary.previous.pumpMl, 'yesterday')} helper={`${compactNumber(summary.previous.pumpMl)} ml yesterday`} tone="text-emerald-400" />
+      </div>
+    </section>
+  )
+}
+
+function ParentCheckIn({ summary }: { summary: SummaryModel }) {
+  const hasFeeds = summary.totals.feedSessionCount > 0
+  const hasWet = summary.totals.wetTotal > 0
+  const hasDirty = summary.totals.dirtyTotal > 0
+  const hasMeasuredMilk = summary.measuredFedMl > 0
+
+  return (
+    <section className="rounded-xl border border-muted bg-muted/10 p-4">
+      <div className="mb-3">
+        <h3 className="text-base font-semibold text-foreground">Today check-in</h3>
+        <p className="text-sm text-muted-foreground">Simple tracking cues, not medical thresholds.</p>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <InsightTile label="Feeds logged" value={hasFeeds ? 'Yes' : 'Not yet'} helper={`${summary.totals.feedSessionCount} sessions`} tone={hasFeeds ? 'text-emerald-400' : 'text-muted-foreground'} />
+        <InsightTile label="Wet nappies" value={hasWet ? 'Logged' : 'None yet'} helper={`${summary.totals.wetTotal} wet total`} tone={hasWet ? 'text-blue-400' : 'text-muted-foreground'} />
+        <InsightTile label="Dirty nappies" value={hasDirty ? 'Logged' : 'None yet'} helper={`${summary.totals.dirtyTotal} dirty total`} tone={hasDirty ? 'text-orange-400' : 'text-muted-foreground'} />
+        <InsightTile label="Bottle volume" value={hasMeasuredMilk ? `${compactNumber(summary.measuredFedMl)} ml` : 'n/a'} helper="Formula + expressed" tone={hasMeasuredMilk ? 'text-amber-400' : 'text-muted-foreground'} />
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">If something feels off, use the chart as context and contact your care team.</p>
+    </section>
+  )
+}
+
 function AnalyticsChart({
   category,
   feedView,
@@ -450,13 +490,15 @@ function FeedViewFilters({ feedView, updateFilters }: { feedView: FeedViewOption
   )
 }
 
-function MobileSummaryCards({ category, feedView, summary }: { category: CategoryOption; feedView: FeedViewOption; summary: SummaryModel }) {
+function MobileSummaryCards({ category, feedView, range, summary }: { category: CategoryOption; feedView: FeedViewOption; range: RangeOption; summary: SummaryModel }) {
+  const comparisonLabel = range === '1d' ? 'yesterday' : 'previous'
+
   if (category === 'feeds') {
     return (
       <>
         <div className="grid grid-cols-2 gap-3">
-          <SummaryCard label="Feed Sessions" value={compactNumber(summary.totals.feedSessionCount)} tone="text-emerald-400" helper={percentChange(summary.totals.feedSessionCount, summary.previous.feedSessionCount)} />
-          <SummaryCard label="Total ml Fed" value={`${compactNumber(summary.measuredFedMl)} ml`} tone="text-amber-400" helper="Measured bottles" />
+          <SummaryCard label="Feed Sessions" value={compactNumber(summary.totals.feedSessionCount)} tone="text-emerald-400" helper={percentChange(summary.totals.feedSessionCount, summary.previous.feedSessionCount, comparisonLabel)} />
+          <SummaryCard label="Total ml Fed" value={`${compactNumber(summary.measuredFedMl)} ml`} tone="text-amber-400" helper={percentChange(summary.measuredFedMl, summary.previousMeasuredFedMl, comparisonLabel)} />
           <SummaryCard label="Sessions / Day" value={String(summary.feedSessionsPerDay)} helper={`${summary.totals.feedCount} feed entries`} />
           <SummaryCard label="Avg Gap" value={formatHours(summary.avgGap)} tone="text-sky-400" helper="Between sessions" />
         </div>
@@ -486,7 +528,7 @@ function MobileSummaryCards({ category, feedView, summary }: { category: Categor
   if (category === 'nappies') {
     return (
       <div className="grid grid-cols-2 gap-3">
-        <SummaryCard label="Total Nappies" value={compactNumber(summary.totals.totalNappies)} tone="text-violet-400" helper={percentChange(summary.totals.totalNappies, summary.previous.totalNappies)} />
+        <SummaryCard label="Total Nappies" value={compactNumber(summary.totals.totalNappies)} tone="text-violet-400" helper={percentChange(summary.totals.totalNappies, summary.previous.totalNappies, comparisonLabel)} />
         <SummaryCard label="Nappies / Day" value={String(summary.nappiesPerDay)} helper={`${summary.totals.wetTotal} wet, ${summary.totals.dirtyTotal} dirty`} />
         <SummaryCard label="Wet Total" value={String(summary.totals.wetTotal)} tone="text-blue-400" helper="Includes both" />
         <SummaryCard label="Dirty Total" value={String(summary.totals.dirtyTotal)} tone="text-orange-400" helper="Includes both" />
@@ -496,19 +538,21 @@ function MobileSummaryCards({ category, feedView, summary }: { category: Categor
 
   return (
     <div className="grid grid-cols-2 gap-3">
-      <SummaryCard label="Pump Sessions" value={compactNumber(summary.totals.pumpCount)} tone="text-emerald-400" helper={percentChange(summary.totals.pumpCount, summary.previous.pumpCount)} />
-      <SummaryCard label="Total Pumped" value={`${compactNumber(summary.totals.pumpMl)} ml`} tone="text-emerald-400" helper={`${summary.totals.pumpMins} min total`} />
+      <SummaryCard label="Pump Sessions" value={compactNumber(summary.totals.pumpCount)} tone="text-emerald-400" helper={percentChange(summary.totals.pumpCount, summary.previous.pumpCount, comparisonLabel)} />
+      <SummaryCard label="Total Pumped" value={`${compactNumber(summary.totals.pumpMl)} ml`} tone="text-emerald-400" helper={percentChange(summary.totals.pumpMl, summary.previous.pumpMl, comparisonLabel)} />
       <SummaryCard label="Avg / Session" value={`${summary.pumpMlPerSession} ml`} helper={`${summary.pumpMinutesPerSession} min avg`} />
       <SummaryCard label="Total Time" value={formatHours(summary.totals.pumpMins)} helper="Pump duration" />
     </div>
   )
 }
 
-function DesktopMetricStrip({ category, summary }: { category: CategoryOption; summary: SummaryModel }) {
+function DesktopMetricStrip({ category, range, summary }: { category: CategoryOption; range: RangeOption; summary: SummaryModel }) {
+  const comparisonLabel = range === '1d' ? 'yesterday' : 'previous'
+
   if (category === 'nappies') {
     return (
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <SummaryCard label="Total Nappies" value={compactNumber(summary.totals.totalNappies)} tone="text-violet-400" helper={percentChange(summary.totals.totalNappies, summary.previous.totalNappies)} />
+        <SummaryCard label="Total Nappies" value={compactNumber(summary.totals.totalNappies)} tone="text-violet-400" helper={percentChange(summary.totals.totalNappies, summary.previous.totalNappies, comparisonLabel)} />
         <SummaryCard label="Nappies / Day" value={String(summary.nappiesPerDay)} helper={`${summary.activeDays} active days`} />
         <SummaryCard label="Wet Total" value={String(summary.totals.wetTotal)} tone="text-blue-400" helper="Includes both" />
         <SummaryCard label="Dirty Total" value={String(summary.totals.dirtyTotal)} tone="text-orange-400" helper="Includes both" />
@@ -519,8 +563,8 @@ function DesktopMetricStrip({ category, summary }: { category: CategoryOption; s
   if (category === 'pumps') {
     return (
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <SummaryCard label="Pump Sessions" value={compactNumber(summary.totals.pumpCount)} tone="text-emerald-400" helper={percentChange(summary.totals.pumpCount, summary.previous.pumpCount)} />
-        <SummaryCard label="Total Pumped" value={`${compactNumber(summary.totals.pumpMl)} ml`} tone="text-emerald-400" helper={percentChange(summary.totals.pumpMl, summary.previous.pumpMl)} />
+        <SummaryCard label="Pump Sessions" value={compactNumber(summary.totals.pumpCount)} tone="text-emerald-400" helper={percentChange(summary.totals.pumpCount, summary.previous.pumpCount, comparisonLabel)} />
+        <SummaryCard label="Total Pumped" value={`${compactNumber(summary.totals.pumpMl)} ml`} tone="text-emerald-400" helper={percentChange(summary.totals.pumpMl, summary.previous.pumpMl, comparisonLabel)} />
         <SummaryCard label="Avg / Session" value={`${summary.pumpMlPerSession} ml`} helper={`${summary.pumpMinutesPerSession} min avg`} />
         <SummaryCard label="Pumped / Day" value={`${summary.pumpMlPerDay} ml`} helper={formatHours(summary.totals.pumpMins)} />
       </div>
@@ -529,8 +573,8 @@ function DesktopMetricStrip({ category, summary }: { category: CategoryOption; s
 
   return (
     <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-      <SummaryCard label="Feed Sessions" value={compactNumber(summary.totals.feedSessionCount)} tone="text-emerald-400" helper={percentChange(summary.totals.feedSessionCount, summary.previous.feedSessionCount)} />
-      <SummaryCard label="Total ml Fed" value={`${compactNumber(summary.measuredFedMl)} ml`} tone="text-amber-400" helper={percentChange(summary.measuredFedMl, summary.previousMeasuredFedMl)} />
+      <SummaryCard label="Feed Sessions" value={compactNumber(summary.totals.feedSessionCount)} tone="text-emerald-400" helper={percentChange(summary.totals.feedSessionCount, summary.previous.feedSessionCount, comparisonLabel)} />
+      <SummaryCard label="Total ml Fed" value={`${compactNumber(summary.measuredFedMl)} ml`} tone="text-amber-400" helper={percentChange(summary.measuredFedMl, summary.previousMeasuredFedMl, comparisonLabel)} />
       <SummaryCard label="Sessions / Day" value={String(summary.feedSessionsPerDay)} helper={`${summary.totals.feedCount} feed entries`} />
       <SummaryCard label="Measured ml / Day" value={`${summary.measuredFedMlPerDay} ml`} helper="Formula + expressed" />
       <SummaryCard label="Avg Gap" value={formatHours(summary.avgGap)} tone="text-sky-400" helper={`Longest ${formatHours(summary.longestGap)}`} />
@@ -556,9 +600,12 @@ function DesktopInsightRail({ category, range, summary }: { category: CategoryOp
           <InsightTile label="Active days" value={`${summary.activeDays}/${selectedDays}`} />
           <InsightTile label="Quiet days" value={String(summary.quietDays)} />
           <InsightTile label="Highest day" value={highestLabel} helper={category === 'pumps' ? 'Sessions' : 'Events'} />
-          <InsightTile label="Previous" value={category === 'feeds' ? `${summary.previous.feedSessionCount} sessions` : category === 'nappies' ? `${summary.previous.totalNappies} changes` : `${summary.previous.pumpCount} sessions`} />
+          <InsightTile label={range === '1d' ? 'Yesterday' : 'Previous'} value={category === 'feeds' ? `${summary.previous.feedSessionCount} sessions` : category === 'nappies' ? `${summary.previous.totalNappies} changes` : `${summary.previous.pumpCount} sessions`} />
         </div>
       </section>
+
+      {range === '1d' && <TodayComparison summary={summary} />}
+      {range === '1d' && <ParentCheckIn summary={summary} />}
 
       {category === 'feeds' && (
         <section className="rounded-xl border border-muted bg-muted/10 p-4">
@@ -742,7 +789,9 @@ export function AnalyticsPanel({
           </a>
         </div>
 
-        <MobileSummaryCards category={category} feedView={feedView} summary={summary} />
+        <MobileSummaryCards category={category} feedView={feedView} range={range} summary={summary} />
+        {range === '1d' && <TodayComparison summary={summary} />}
+        {range === '1d' && <ParentCheckIn summary={summary} />}
 
         <div className="flex h-72 flex-col justify-center rounded-xl border border-muted/30 bg-muted/20 p-4">
           <h3 className="mb-4 text-sm font-semibold text-muted-foreground">{chartTitle(category, feedView, summary)}</h3>
@@ -760,7 +809,9 @@ export function AnalyticsPanel({
         <RangeFilters range={range} updateFilters={updateFilters} />
         <CategoryFilters category={category} updateFilters={updateFilters} />
         {category === 'feeds' && <FeedViewFilters feedView={feedView} updateFilters={updateFilters} />}
-        <MobileSummaryCards category={category} feedView={feedView} summary={summary} />
+        <MobileSummaryCards category={category} feedView={feedView} range={range} summary={summary} />
+        {range === '1d' && <TodayComparison summary={summary} />}
+        {range === '1d' && <ParentCheckIn summary={summary} />}
         <div className="flex h-80 flex-col justify-center rounded-xl border border-muted/30 bg-muted/20 p-4">
           <h3 className="mb-4 text-sm font-semibold text-muted-foreground">{chartTitle(category, feedView, summary)}</h3>
           <div className="h-full flex-1 text-xs">
@@ -796,7 +847,7 @@ export function AnalyticsPanel({
           <div className="flex flex-col gap-4">
             <CategoryFilters category={category} updateFilters={updateFilters} />
             {category === 'feeds' && <FeedViewFilters feedView={feedView} updateFilters={updateFilters} />}
-            <DesktopMetricStrip category={category} summary={summary} />
+            <DesktopMetricStrip category={category} range={range} summary={summary} />
 
             <section className="flex min-h-[440px] flex-col rounded-xl border border-muted bg-muted/10 p-4">
               <div className="mb-4 flex items-start justify-between gap-4">
