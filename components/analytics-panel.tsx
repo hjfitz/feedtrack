@@ -78,6 +78,16 @@ function percentChange(current: number, previous: number, label = 'previous') {
   return `${change > 0 ? '+' : ''}${change}% vs ${label}`
 }
 
+function comparePhrase(current: number, previous: number, unit: string) {
+  if (!current && !previous) return `No ${unit} logged yet today or at this time yesterday.`
+  if (current && !previous) return `${compactNumber(current)} ${unit} logged today, with none logged by this time yesterday.`
+  if (!current) return `No ${unit} logged yet today; ${compactNumber(previous)} had been logged by this time yesterday.`
+
+  const change = Math.round(((current - previous) / previous) * 100)
+  if (Math.abs(change) < 15) return `${compactNumber(current)} ${unit} today, broadly similar to this time yesterday.`
+  return `${compactNumber(current)} ${unit} today, ${change > 0 ? 'up' : 'down'} ${Math.abs(change)}% vs this time yesterday.`
+}
+
 function avg(total: number, count: number, precision = 0) {
   if (!count) return 0
   const factor = 10 ** precision
@@ -292,12 +302,32 @@ function ParentCheckIn({ summary }: { summary: SummaryModel }) {
   const hasWet = summary.totals.wetTotal > 0
   const hasDirty = summary.totals.dirtyTotal > 0
   const hasMeasuredMilk = summary.measuredFedMl > 0
+  const reassuranceItems = [
+    comparePhrase(summary.totals.feedSessionCount, summary.previous.feedSessionCount, 'feed sessions'),
+    comparePhrase(summary.measuredFedMl, summary.previousMeasuredFedMl, 'ml measured'),
+    comparePhrase(summary.totals.wetTotal, summary.previous.wetTotal, 'wet nappies'),
+  ]
+  const nextCue = hasFeeds && hasWet
+    ? 'Feeds and wet nappies are both being captured today, so the day has useful context.'
+    : hasFeeds
+      ? 'Feeds are being captured; keep an eye on nappies as the day fills in.'
+      : hasWet
+        ? 'Wet nappies are being captured; log feeds when they happen to complete the picture.'
+        : 'The day is still quiet in the tracker; the next log will make this view more useful.'
 
   return (
     <section className="rounded-xl border border-muted bg-muted/10 p-4">
       <div className="mb-3">
-        <h3 className="text-base font-semibold text-foreground">Today check-in</h3>
-        <p className="text-sm text-muted-foreground">Simple tracking cues, not medical thresholds.</p>
+        <h3 className="text-base font-semibold text-foreground">Parent check-in</h3>
+        <p className="text-sm text-muted-foreground">Calm tracking context, not medical thresholds.</p>
+      </div>
+      <div className="mb-3 rounded-lg border border-sky-500/20 bg-sky-500/10 px-3 py-2">
+        <p className="text-sm font-medium text-foreground">{nextCue}</p>
+      </div>
+      <div className="mb-3 flex flex-col gap-2">
+        {reassuranceItems.map(item => (
+          <p key={item} className="rounded-lg border border-muted/50 bg-background/35 px-3 py-2 text-sm text-muted-foreground">{item}</p>
+        ))}
       </div>
       <div className="grid grid-cols-2 gap-2">
         <InsightTile label="Feeds logged" value={hasFeeds ? 'Yes' : 'Not yet'} helper={`${summary.totals.feedSessionCount} sessions`} tone={hasFeeds ? 'text-emerald-400' : 'text-muted-foreground'} />
@@ -657,6 +687,8 @@ function DesktopInsightRail({ category, range, summary }: { category: CategoryOp
 export function AnalyticsPanel({
   data,
   hourlyData,
+  previousHourlyData,
+  currentHour,
   feedSessionTimestamps,
   initialRange,
   initialCategory,
@@ -665,6 +697,8 @@ export function AnalyticsPanel({
 }: {
   data: AnalyticsDataPoint[]
   hourlyData: AnalyticsDataPoint[]
+  previousHourlyData: AnalyticsDataPoint[]
+  currentHour: number
   feedSessionTimestamps: string[]
   initialRange: RangeOption
   initialCategory: CategoryOption
@@ -703,8 +737,8 @@ export function AnalyticsPanel({
     [data, hourlyData, range, selectedDays],
   )
   const previousData = useMemo(
-    () => range === '1d' ? data.slice(-2, -1) : data.slice(-(selectedDays * 2), -selectedDays),
-    [data, range, selectedDays],
+    () => range === '1d' ? previousHourlyData.slice(0, currentHour + 1) : data.slice(-(selectedDays * 2), -selectedDays),
+    [currentHour, data, previousHourlyData, range, selectedDays],
   )
 
   const summary = useMemo<SummaryModel>(() => {

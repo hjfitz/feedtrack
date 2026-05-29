@@ -14,7 +14,7 @@ import {
   updateNappy,
   updatePump,
 } from '@/lib/server/tracker'
-import type { FeedType, NappyType } from '@/lib/types'
+import type { FeedType, NappySize, NappyType } from '@/lib/types'
 
 function getString(formData: FormData, key: string) {
   const value = formData.get(key)
@@ -34,6 +34,18 @@ function getTimestamp(formData: FormData) {
   return timestamp && !Number.isNaN(timestamp.getTime()) ? timestamp : new Date()
 }
 
+function getOptionalString(formData: FormData, key: string) {
+  const value = getString(formData, key).trim()
+  return value || undefined
+}
+
+function getNappySize(formData: FormData): NappySize | undefined {
+  const value = getOptionalString(formData, 'size')
+  return value === 'N' || value === '1' || value === '2' || value === '3' || value === '4' || value === '5' || value === '6' || value === '7'
+    ? value
+    : undefined
+}
+
 function revalidateTrackerPages() {
   revalidatePath('/')
   revalidatePath('/history')
@@ -48,6 +60,7 @@ function getFeedPayload(type: FeedType, formData: FormData) {
   return {
     durationSeconds: type === 'breast' && measure !== 'volume' && rounded ? rounded * 60 : undefined,
     volumeMl: (type === 'formula' || measure === 'volume') && rounded ? rounded : undefined,
+    notes: getOptionalString(formData, 'notes'),
   }
 }
 
@@ -58,6 +71,7 @@ function getPumpPayload(formData: FormData) {
   return {
     durationSeconds: durationMinutes ? Math.round(durationMinutes) * 60 : undefined,
     volumeMl: volumeMl ? Math.round(volumeMl) : undefined,
+    notes: getOptionalString(formData, 'notes'),
   }
 }
 
@@ -79,6 +93,8 @@ export async function addNappyAction(formData: FormData) {
   await addNappy(householdId, {
     type: getString(formData, 'type') as NappyType,
     timestamp: getTimestamp(formData),
+    size: getNappySize(formData),
+    notes: getOptionalString(formData, 'notes'),
   })
   revalidateTrackerPages()
 }
@@ -131,6 +147,8 @@ export async function updateNappyAction(formData: FormData) {
   await updateNappy(householdId, getString(formData, 'id'), {
     type: getString(formData, 'type') as NappyType,
     timestamp: getTimestamp(formData),
+    size: getNappySize(formData),
+    notes: getOptionalString(formData, 'notes'),
   })
   revalidateTrackerPages()
 }

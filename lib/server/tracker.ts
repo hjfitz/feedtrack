@@ -16,7 +16,7 @@ import {
 } from '@/lib/server/blob-storage'
 import { calculateSummary } from '@/lib/server/summaries'
 import { addAppDays, parseAppDateTimeLocal, startOfAppDay } from '@/lib/timezone'
-import type { DailySummary, FeedEntry, FeedType, NappyEntry, NappyType, PumpEntry } from '@/lib/types'
+import type { DailySummary, FeedEntry, FeedType, NappyEntry, NappySize, NappyType, PumpEntry } from '@/lib/types'
 
 const INVITE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
@@ -65,6 +65,18 @@ function sortNappies(nappies: NappyEntry[]) {
 
 function sortPumps(pumps: PumpEntry[]) {
   return pumps.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+}
+
+function cleanNotes(value: unknown) {
+  if (typeof value !== 'string') return undefined
+  const notes = value.trim()
+  return notes ? notes.slice(0, 280) : undefined
+}
+
+function cleanNappySize(value: unknown): NappySize | undefined {
+  return value === 'N' || value === '1' || value === '2' || value === '3' || value === '4' || value === '5' || value === '6' || value === '7'
+    ? value
+    : undefined
 }
 
 export async function getFeeds(householdId: string, since?: Date | null) {
@@ -156,7 +168,7 @@ export async function getOverviewData(householdId: string, date?: Date) {
 
 export async function addFeed(
   householdId: string,
-  input: { type?: FeedType; timestamp?: unknown; side?: FeedEntry['side']; durationSeconds?: unknown; volumeMl?: unknown }
+  input: { type?: FeedType; timestamp?: unknown; side?: FeedEntry['side']; durationSeconds?: unknown; volumeMl?: unknown; notes?: unknown }
 ) {
   const timestamp = parseDate(input.timestamp)
 
@@ -175,6 +187,7 @@ export async function addFeed(
     side: input.side,
     durationSeconds: input.type === 'breast' && typeof input.volumeMl !== 'number' && typeof input.durationSeconds === 'number' ? input.durationSeconds : undefined,
     volumeMl: typeof input.volumeMl === 'number' ? input.volumeMl : undefined,
+    notes: cleanNotes(input.notes),
   }
 
   const feeds = await getHouseholdData(householdId, 'feeds')
@@ -194,6 +207,7 @@ export async function updateFeed(householdId: string, id: string, input: Partial
   if (input.type === 'breast' || input.type === 'formula') updates.type = input.type
   if (typeof input.durationSeconds === 'number') updates.durationSeconds = input.durationSeconds
   if (typeof input.volumeMl === 'number') updates.volumeMl = input.volumeMl
+  if ('notes' in input) updates.notes = cleanNotes(input.notes)
   if (input.timestamp) {
     const timestamp = parseDate(input.timestamp)
     if (!timestamp) throw new AppError('Valid timestamp is required')
@@ -212,6 +226,9 @@ export async function updateFeed(householdId: string, id: string, input: Partial
     delete nextFeed.durationSeconds
     delete nextFeed.side
   }
+  if ('notes' in updates && !updates.notes) {
+    delete nextFeed.notes
+  }
 
   feeds[index] = nextFeed
   await setHouseholdData(householdId, 'feeds', sortFeeds(feeds))
@@ -225,7 +242,7 @@ export async function deleteFeed(householdId: string, id: string) {
 
 export async function addNappy(
   householdId: string,
-  input: { type?: NappyType; timestamp?: unknown; notes?: unknown }
+  input: { type?: NappyType; timestamp?: unknown; size?: unknown; notes?: unknown }
 ) {
   const timestamp = parseDate(input.timestamp)
 
@@ -241,7 +258,8 @@ export async function addNappy(
     id: generateId(),
     type: input.type,
     timestamp,
-    notes: typeof input.notes === 'string' && input.notes ? input.notes : undefined,
+    size: cleanNappySize(input.size),
+    notes: cleanNotes(input.notes),
   }
 
   const nappies = await getHouseholdData(householdId, 'nappies')
@@ -259,7 +277,8 @@ export async function updateNappy(householdId: string, id: string, input: Partia
 
   const updates: Partial<NappyEntry> = {}
   if (input.type === 'wet' || input.type === 'dirty' || input.type === 'both') updates.type = input.type
-  if (typeof input.notes === 'string') updates.notes = input.notes
+  if ('size' in input) updates.size = cleanNappySize(input.size)
+  if ('notes' in input) updates.notes = cleanNotes(input.notes)
   if (input.timestamp) {
     const timestamp = parseDate(input.timestamp)
     if (!timestamp) throw new AppError('Valid timestamp is required')
@@ -267,6 +286,12 @@ export async function updateNappy(householdId: string, id: string, input: Partia
   }
 
   const nextNappy = { ...nappies[index], ...updates }
+  if ('size' in updates && !updates.size) {
+    delete nextNappy.size
+  }
+  if ('notes' in updates && !updates.notes) {
+    delete nextNappy.notes
+  }
   nappies[index] = nextNappy
   await setHouseholdData(householdId, 'nappies', sortNappies(nappies))
   return nextNappy
@@ -279,7 +304,7 @@ export async function deleteNappy(householdId: string, id: string) {
 
 export async function addPump(
   householdId: string,
-  input: { timestamp?: unknown; durationSeconds?: unknown; volumeMl?: unknown }
+  input: { timestamp?: unknown; durationSeconds?: unknown; volumeMl?: unknown; notes?: unknown }
 ) {
   const timestamp = parseDate(input.timestamp)
 
@@ -294,6 +319,7 @@ export async function addPump(
     id: generateId(),
     timestamp,
     durationSeconds: Math.round(input.durationSeconds),
+    notes: cleanNotes(input.notes),
   }
   if (typeof input.volumeMl === 'number' && input.volumeMl > 0) {
     pump.volumeMl = Math.round(input.volumeMl)
@@ -323,6 +349,7 @@ export async function updatePump(householdId: string, id: string, input: Partial
       updates.volumeMl = undefined
     }
   }
+  if ('notes' in input) updates.notes = cleanNotes(input.notes)
   if (input.timestamp) {
     const timestamp = parseDate(input.timestamp)
     if (!timestamp) throw new AppError('Valid timestamp is required')
@@ -332,6 +359,9 @@ export async function updatePump(householdId: string, id: string, input: Partial
   const nextPump: PumpEntry = { ...pumps[index], ...updates }
   if ('volumeMl' in updates && updates.volumeMl === undefined) {
     delete nextPump.volumeMl
+  }
+  if ('notes' in updates && !updates.notes) {
+    delete nextPump.notes
   }
   pumps[index] = nextPump
   await setHouseholdData(householdId, 'pumps', sortPumps(pumps))

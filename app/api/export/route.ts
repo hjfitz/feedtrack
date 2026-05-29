@@ -27,9 +27,9 @@ export async function GET(request: Request) {
       timestamp: new Date(feed.timestamp),
       details: feed.type === 'breast'
         ? feed.volumeMl
-          ? `Breast milk, ${feed.volumeMl} ml`
-          : `Breast, ${Math.round((feed.durationSeconds || 0) / 60)} min`
-        : `Formula, ${feed.volumeMl} ml`,
+          ? `Breast milk, ${feed.volumeMl} ml${feed.notes ? ' - ' + feed.notes : ''}`
+          : `Breast, ${Math.round((feed.durationSeconds || 0) / 60)} min${feed.notes ? ' - ' + feed.notes : ''}`
+        : `Formula, ${feed.volumeMl} ml${feed.notes ? ' - ' + feed.notes : ''}`,
     }))
 
   const nappyEntries = nappies
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
     .map(nappy => ({
       type: 'Nappy' as const,
       timestamp: new Date(nappy.timestamp),
-      details: `${nappy.type}${nappy.notes ? ' - ' + nappy.notes : ''}`,
+      details: `${nappy.type}${nappy.size ? ', size ' + nappy.size : ''}${nappy.notes ? ' - ' + nappy.notes : ''}`,
     }))
 
   const pumpEntries = pumps
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     .map(pump => ({
       type: 'Pump' as const,
       timestamp: new Date(pump.timestamp),
-      details: `${Math.round((pump.durationSeconds || 0) / 60)} min, ${pump.volumeMl ? `${pump.volumeMl} ml` : 'volume n/a'}`,
+      details: `${Math.round((pump.durationSeconds || 0) / 60)} min, ${pump.volumeMl ? `${pump.volumeMl} ml` : 'volume n/a'}${pump.notes ? ' - ' + pump.notes : ''}`,
     }))
 
   const lines = ['Type,Date,Time,Details']

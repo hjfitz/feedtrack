@@ -20,7 +20,8 @@ import type { FeedEntry, NappyEntry, PumpEntry } from '@/lib/types'
 import type { HistoryItem } from '@/lib/server/history-data'
 
 export type FilterType = 'all' | 'feeds' | 'nappies' | 'pumps'
-export type TimeRange = 'today' | '12h' | '24h' | '7d'
+export type TimeRange = 'today' | '12h' | '24h' | '7d' | 'day'
+const NAPPY_SIZES = ['', 'N', '1', '2', '3', '4', '5', '6', '7'] as const
 
 function formatTime(date: Date): string {
   return formatAppTime(date)
@@ -62,30 +63,9 @@ function feedTone(kind: FeedKind) {
   return 'text-amber-400'
 }
 
-function filterHref(type: FilterType, range: TimeRange) {
+function filterHref(type: FilterType, range: TimeRange, dateKey?: string) {
+  if (range === 'day' && dateKey) return `/history?type=${type}&date=${dateKey}`
   return `/history?type=${type}&range=${range}`
-}
-
-function ActionIcon({
-  label,
-  children,
-  pending,
-}: {
-  label: string
-  children: React.ReactNode
-  pending?: boolean
-}) {
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="h-9 w-9 rounded-lg grid place-items-center text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      aria-label={label}
-      title={label}
-    >
-      {children}
-    </button>
-  )
 }
 
 function FeedItem({ feed }: { feed: FeedEntry }) {
@@ -93,6 +73,7 @@ function FeedItem({ feed }: { feed: FeedEntry }) {
   const [kind, setKind] = useState<FeedKind>(feedKind(feed))
   const [amount, setAmount] = useState(feed.volumeMl ? String(feed.volumeMl) : String(Math.round((feed.durationSeconds || 0) / 60)))
   const [timestamp, setTimestamp] = useState(formatAppDateTimeLocal(feed.timestamp))
+  const [notes, setNotes] = useState(feed.notes || '')
   const [isPending, startTransition] = useTransition()
   const kindForFeed = feedKind(feed)
   const isBreast = kindForFeed === 'breast'
@@ -118,6 +99,7 @@ function FeedItem({ feed }: { feed: FeedEntry }) {
         <input type="hidden" name="measure" value={editMeasure} />
         <input type="hidden" name="amount" value={amount} />
         <input type="hidden" name="timestamp" value={timestamp} />
+        <input type="hidden" name="notes" value={notes} />
         <div className="grid grid-cols-3 gap-2">
           {(['breast', 'expressed', 'formula'] as FeedKind[]).map(option => (
             <button key={option} type="button" onClick={() => setKind(option)} disabled={isPending} className={`h-10 rounded-lg text-sm font-medium capitalize transition-colors ${kind === option ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'} disabled:opacity-50 disabled:cursor-not-allowed`}>
@@ -132,6 +114,7 @@ function FeedItem({ feed }: { feed: FeedEntry }) {
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{kind === 'breast' ? 'm' : 'ml'}</span>
           </div>
         </div>
+        <textarea value={notes} onChange={(event) => setNotes(event.target.value)} disabled={isPending} rows={2} maxLength={280} placeholder="Optional note" className="rounded-lg bg-background border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 disabled:opacity-50 disabled:cursor-not-allowed" />
         <div className="flex justify-end gap-2">
           <button type="button" onClick={() => setEditing(false)} disabled={isPending} className="h-10 w-10 rounded-lg grid place-items-center text-muted-foreground bg-muted disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Cancel edit" title="Cancel edit">
             <X className="h-4 w-4" aria-hidden="true" />
@@ -151,7 +134,7 @@ function FeedItem({ feed }: { feed: FeedEntry }) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground">{feedLabel(kindForFeed)}</p>
-        <p className="text-xs text-muted-foreground">{formatTime(feed.timestamp)}</p>
+        <p className="text-xs text-muted-foreground">{formatTime(feed.timestamp)}{feed.notes ? ` · ${feed.notes}` : ''}</p>
       </div>
       <div className="text-right">
         <p className={`text-sm font-semibold ${feedTone(kindForFeed)}`}>{kindForFeed === 'breast' ? formatDuration(feed.durationSeconds || 0) : `${feed.volumeMl || 0}ml`}</p>
@@ -193,6 +176,8 @@ function NappyItem({ nappy }: { nappy: NappyEntry }) {
   const [editing, setEditing] = useState(false)
   const [type, setType] = useState(nappy.type)
   const [timestamp, setTimestamp] = useState(formatAppDateTimeLocal(nappy.timestamp))
+  const [size, setSize] = useState(nappy.size || '')
+  const [notes, setNotes] = useState(nappy.notes || '')
   const [isPending, startTransition] = useTransition()
   const colors: Record<string, { bg: string; text: string }> = {
     wet: { bg: 'bg-blue-500/20', text: 'text-blue-400' },
@@ -215,6 +200,8 @@ function NappyItem({ nappy }: { nappy: NappyEntry }) {
         <input type="hidden" name="id" value={nappy.id} />
         <input type="hidden" name="type" value={type} />
         <input type="hidden" name="timestamp" value={timestamp} />
+        <input type="hidden" name="size" value={size} />
+        <input type="hidden" name="notes" value={notes} />
         <div className="grid grid-cols-3 gap-2">
           {(['wet', 'dirty', 'both'] as const).map(option => (
             <button key={option} type="button" onClick={() => setType(option)} disabled={isPending} className={`h-10 rounded-lg text-sm font-medium capitalize transition-colors ${type === option ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'} disabled:opacity-50 disabled:cursor-not-allowed`}>
@@ -222,7 +209,13 @@ function NappyItem({ nappy }: { nappy: NappyEntry }) {
             </button>
           ))}
         </div>
-        <input type="datetime-local" value={timestamp} onChange={(event) => setTimestamp(event.target.value)} disabled={isPending} className="h-11 rounded-lg bg-background border border-border px-3 text-sm text-foreground disabled:opacity-50 disabled:cursor-not-allowed" />
+        <div className="grid grid-cols-[1fr_88px] gap-2">
+          <input type="datetime-local" value={timestamp} onChange={(event) => setTimestamp(event.target.value)} disabled={isPending} className="h-11 rounded-lg bg-background border border-border px-3 text-sm text-foreground disabled:opacity-50 disabled:cursor-not-allowed" />
+          <select value={size} onChange={(event) => setSize(event.target.value)} disabled={isPending} className="h-11 rounded-lg bg-background border border-border px-2 text-sm text-foreground disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Nappy size">
+            {NAPPY_SIZES.map(option => <option key={option || 'none'} value={option}>{option ? `Size ${option}` : 'No size'}</option>)}
+          </select>
+        </div>
+        <textarea value={notes} onChange={(event) => setNotes(event.target.value)} disabled={isPending} rows={2} maxLength={280} placeholder="Optional note" className="rounded-lg bg-background border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 disabled:opacity-50 disabled:cursor-not-allowed" />
         <div className="flex justify-end gap-2">
           <button type="button" onClick={() => setEditing(false)} disabled={isPending} className="h-10 w-10 rounded-lg grid place-items-center text-muted-foreground bg-muted disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Cancel edit" title="Cancel edit">
             <X className="h-4 w-4" aria-hidden="true" />
@@ -242,19 +235,37 @@ function NappyItem({ nappy }: { nappy: NappyEntry }) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground capitalize">{nappy.type === 'both' ? 'Wet & Dirty' : nappy.type} nappy</p>
-        <p className="text-xs text-muted-foreground">{formatTime(nappy.timestamp)}</p>
+        <p className="text-xs text-muted-foreground">{formatTime(nappy.timestamp)}{nappy.size ? ` · Size ${nappy.size}` : ''}{nappy.notes ? ` · ${nappy.notes}` : ''}</p>
       </div>
       <div className={`text-sm font-semibold capitalize ${c.text}`}>{nappy.type}</div>
       <div className="flex gap-1 shrink-0">
         <button type="button" onClick={() => setEditing(true)} className="h-9 w-9 rounded-lg grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" aria-label="Edit nappy" title="Edit nappy">
           <Pencil className="h-4 w-4" aria-hidden="true" />
         </button>
-        <form action={deleteNappyAction}>
-          <input type="hidden" name="id" value={nappy.id} />
-          <ActionIcon label="Delete nappy">
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-          </ActionIcon>
-        </form>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button type="button" disabled={isPending} className="h-9 w-9 rounded-lg grid place-items-center text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Delete nappy" title="Delete nappy">
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this nappy?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently remove the {nappy.type === 'both' ? 'wet and dirty' : nappy.type} nappy logged at {formatTime(nappy.timestamp)}.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <form action={deleteNappyAction}>
+                <input type="hidden" name="id" value={nappy.id} />
+                <AlertDialogAction type="submit" className="bg-red-500 text-white hover:bg-red-400">
+                  Delete
+                </AlertDialogAction>
+              </form>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   )
@@ -265,6 +276,7 @@ function PumpItem({ pump }: { pump: PumpEntry }) {
   const [durationMinutes, setDurationMinutes] = useState(String(Math.round((pump.durationSeconds || 0) / 60)))
   const [volumeMl, setVolumeMl] = useState(pump.volumeMl ? String(pump.volumeMl) : '')
   const [timestamp, setTimestamp] = useState(formatAppDateTimeLocal(pump.timestamp))
+  const [notes, setNotes] = useState(pump.notes || '')
   const [isPending, startTransition] = useTransition()
   const durationValue = Number(durationMinutes)
   const volumeValue = Number(volumeMl)
@@ -287,6 +299,7 @@ function PumpItem({ pump }: { pump: PumpEntry }) {
         <input type="hidden" name="durationMinutes" value={durationMinutes} />
         <input type="hidden" name="volumeMl" value={volumeMl} />
         <input type="hidden" name="timestamp" value={timestamp} />
+        <input type="hidden" name="notes" value={notes} />
         <input type="datetime-local" value={timestamp} onChange={(event) => setTimestamp(event.target.value)} disabled={isPending} className="h-11 rounded-lg bg-background border border-border px-3 text-sm text-foreground disabled:opacity-50 disabled:cursor-not-allowed" />
         <div className="grid grid-cols-2 gap-2">
           <div className="relative">
@@ -298,6 +311,7 @@ function PumpItem({ pump }: { pump: PumpEntry }) {
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">ml</span>
           </div>
         </div>
+        <textarea value={notes} onChange={(event) => setNotes(event.target.value)} disabled={isPending} rows={2} maxLength={280} placeholder="Optional note" className="rounded-lg bg-background border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 disabled:opacity-50 disabled:cursor-not-allowed" />
         <div className="flex justify-end gap-2">
           <button type="button" onClick={() => setEditing(false)} disabled={isPending} className="h-10 w-10 rounded-lg grid place-items-center text-muted-foreground bg-muted disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Cancel edit" title="Cancel edit">
             <X className="h-4 w-4" aria-hidden="true" />
@@ -317,19 +331,37 @@ function PumpItem({ pump }: { pump: PumpEntry }) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground">Pump session</p>
-        <p className="text-xs text-muted-foreground">{formatTime(pump.timestamp)}</p>
+        <p className="text-xs text-muted-foreground">{formatTime(pump.timestamp)}{pump.notes ? ` · ${pump.notes}` : ''}</p>
       </div>
       <div className="text-sm font-semibold text-emerald-400 tabular-nums">{formatPumpDetail(pump)}</div>
       <div className="flex gap-1 shrink-0">
         <button type="button" onClick={() => setEditing(true)} className="h-9 w-9 rounded-lg grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" aria-label="Edit pump" title="Edit pump">
           <Pencil className="h-4 w-4" aria-hidden="true" />
         </button>
-        <form action={deletePumpAction}>
-          <input type="hidden" name="id" value={pump.id} />
-          <ActionIcon label="Delete pump">
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-          </ActionIcon>
-        </form>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button type="button" disabled={isPending} className="h-9 w-9 rounded-lg grid place-items-center text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Delete pump" title="Delete pump">
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this pump session?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently remove the pump session logged at {formatTime(pump.timestamp)}.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <form action={deletePumpAction}>
+                <input type="hidden" name="id" value={pump.id} />
+                <AlertDialogAction type="submit" className="bg-red-500 text-white hover:bg-red-400">
+                  Delete
+                </AlertDialogAction>
+              </form>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   )
@@ -341,6 +373,7 @@ export function HistoryPanel({
   type,
   range,
   exportHref,
+  selectedDate,
   variant = 'full',
 }: {
   items: HistoryItem[]
@@ -348,6 +381,7 @@ export function HistoryPanel({
   type: FilterType
   range: TimeRange
   exportHref: string
+  selectedDate?: { key: string; label: string }
   variant?: 'full' | 'compact'
 }) {
   const isCompact = variant === 'compact'
@@ -367,11 +401,17 @@ export function HistoryPanel({
       ) : <div className="flex flex-col gap-3">
         <div className="flex gap-2">
           {(['all', 'feeds', 'nappies', 'pumps'] as FilterType[]).map(filter => (
-            <Link key={filter} href={filterHref(filter, range)} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors capitalize text-center ${type === filter ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground'}`}>
+            <Link key={filter} href={filterHref(filter, range, selectedDate?.key)} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors capitalize text-center ${type === filter ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground'}`}>
               {filter}
             </Link>
           ))}
         </div>
+        {selectedDate && (
+          <div className="rounded-xl border border-sky-500/25 bg-sky-500/10 px-4 py-3 text-center">
+            <p className="text-xs font-semibold uppercase tracking-wide text-sky-300">Selected day</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">{selectedDate.label}</p>
+          </div>
+        )}
         <div className="flex gap-2">
           {[
             { value: 'today', label: 'Today' },

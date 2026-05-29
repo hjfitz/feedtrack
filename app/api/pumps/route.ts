@@ -6,6 +6,7 @@ interface PumpBody {
   timestamp?: string
   durationSeconds?: number
   volumeMl?: number
+  notes?: string
 }
 
 export async function GET(request: Request) {

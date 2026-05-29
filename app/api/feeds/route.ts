@@ -8,6 +8,7 @@ interface FeedBody {
   side?: 'left' | 'right'
   durationSeconds?: number
   volumeMl?: number
+  notes?: string
 }
 
 export async function GET(request: Request) {

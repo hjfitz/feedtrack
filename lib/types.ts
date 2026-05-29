@@ -3,6 +3,7 @@
 export type FeedType = 'breast' | 'formula'
 export type BreastSide = 'left' | 'right'
 export type NappyType = 'wet' | 'dirty' | 'both'
+export type NappySize = 'N' | '1' | '2' | '3' | '4' | '5' | '6' | '7'
 
 export interface FeedEntry {
   id: string
@@ -13,12 +14,14 @@ export interface FeedEntry {
   durationSeconds?: number
   // Bottle volume. For breast feeds this means expressed milk.
   volumeMl?: number
+  notes?: string
 }
 
 export interface NappyEntry {
   id: string
   type: NappyType
   timestamp: Date
+  size?: NappySize
   notes?: string
 }
 
@@ -27,6 +30,7 @@ export interface PumpEntry {
   timestamp: Date
   durationSeconds: number
   volumeMl?: number
+  notes?: string
 }
 
 export interface DailySummary {

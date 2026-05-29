@@ -42,6 +42,7 @@ import type { DailySummary, FeedEntry, NappyEntry, PumpEntry } from '@/lib/types
 
 const BREAST_PRESETS = [5, 10, 15, 20, 25, 30]
 const BOTTLE_PRESETS = [30, 60, 90, 120, 150, 180]
+const NAPPY_SIZES = ['', 'N', '1', '2', '3', '4', '5', '6', '7'] as const
 
 type FeedKind = 'breast' | 'expressed' | 'formula'
 
@@ -49,8 +50,11 @@ interface DayNavigation {
   label: string
   selectedKey: string
   isToday: boolean
-  previousHref: string
+  previousHref: string | null
   nextHref: string | null
+  todayKey: string
+  minKey: string
+  historyHref: string
 }
 
 function formatTimeSince(date: Date | null, now: Date): string {
@@ -336,11 +340,13 @@ function DesktopQuickLog({
   onLogPump,
 }: {
   pending: boolean
-  onLogFeed: (kind: FeedKind, amount: number, timestamp: string) => void
-  onLogNappy: (type: NappyEntry['type'], timestamp: string) => void
-  onLogPump: (durationMinutes: number, volumeMl: number | undefined, timestamp: string) => void
+  onLogFeed: (kind: FeedKind, amount: number, timestamp: string, notes: string) => void
+  onLogNappy: (type: NappyEntry['type'], timestamp: string, size: string, notes: string) => void
+  onLogPump: (durationMinutes: number, volumeMl: number | undefined, timestamp: string, notes: string) => void
 }) {
   const [timestamp, setTimestamp] = useState(() => formatAppDateTimeLocal(new Date()))
+  const [notes, setNotes] = useState('')
+  const [nappySize, setNappySize] = useState('')
 
   return (
     <section className="rounded-xl border border-muted bg-muted/10 p-4">
@@ -370,7 +376,7 @@ function DesktopQuickLog({
           unit="min"
           timestamp={timestamp}
           disabled={pending}
-          onLog={(value) => onLogFeed('breast', value, timestamp)}
+          onLog={(value) => onLogFeed('breast', value, timestamp, notes)}
         />
         <FeedLogSection
           title="Milk"
@@ -380,7 +386,7 @@ function DesktopQuickLog({
           unit="ml"
           timestamp={timestamp}
           disabled={pending}
-          onLog={(value) => onLogFeed('expressed', value, timestamp)}
+          onLog={(value) => onLogFeed('expressed', value, timestamp, notes)}
         />
         <FeedLogSection
           title="Formula"
@@ -390,9 +396,13 @@ function DesktopQuickLog({
           unit="ml"
           timestamp={timestamp}
           disabled={pending}
-          onLog={(value) => onLogFeed('formula', value, timestamp)}
+          onLog={(value) => onLogFeed('formula', value, timestamp, notes)}
         />
-        <PumpLogSection disabled={pending} timestamp={timestamp} onLog={(duration, volume) => onLogPump(duration, volume, timestamp)} />
+        <PumpLogSection disabled={pending} timestamp={timestamp} onLog={(duration, volume) => onLogPump(duration, volume, timestamp, notes)} />
+      </div>
+
+      <div className="mt-3">
+        <input type="text" value={notes} onChange={(event) => setNotes(event.target.value)} disabled={pending} maxLength={280} placeholder="Optional note for this quick log" className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground/50 disabled:cursor-not-allowed disabled:opacity-45" />
       </div>
 
       <div className="mt-3 rounded-lg border border-muted/60 bg-muted/15 p-3">
@@ -403,9 +413,15 @@ function DesktopQuickLog({
           </div>
           <Droplets className="h-4 w-4 text-violet-400" aria-hidden="true" />
         </div>
+        <div className="mb-3 grid grid-cols-[140px_1fr] gap-2">
+          <select value={nappySize} onChange={(event) => setNappySize(event.target.value)} disabled={pending} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-45" aria-label="Nappy size">
+            {NAPPY_SIZES.map(option => <option key={option || 'none'} value={option}>{option ? `Size ${option}` : 'No size'}</option>)}
+          </select>
+          <input type="text" value={notes} onChange={(event) => setNotes(event.target.value)} disabled={pending} maxLength={280} placeholder="Optional nappy note" className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground/50 disabled:cursor-not-allowed disabled:opacity-45" />
+        </div>
         <div className="grid grid-cols-3 gap-2">
           {(['wet', 'dirty', 'both'] as const).map(type => (
-            <ActionButton key={type} disabled={!timestamp || pending} onClick={() => onLogNappy(type, timestamp)}>
+            <ActionButton key={type} disabled={!timestamp || pending} onClick={() => onLogNappy(type, timestamp, nappySize, notes)}>
               {type === 'both' ? 'Wet + dirty' : type}
             </ActionButton>
           ))}
@@ -489,6 +505,7 @@ function FeedActivityRow({ feed, onChanged }: { feed: FeedEntry; onChanged: () =
   const [kind, setKind] = useState<FeedKind>(feedKind(feed))
   const [amount, setAmount] = useState(feed.volumeMl ? String(feed.volumeMl) : String(Math.round((feed.durationSeconds || 0) / 60)))
   const [timestamp, setTimestamp] = useState(formatAppDateTimeLocal(feed.timestamp))
+  const [notes, setNotes] = useState(feed.notes || '')
   const [pending, startTransition] = useTransition()
   const currentKind = feedKind(feed)
   const amountValue = Number(amount)
@@ -502,6 +519,7 @@ function FeedActivityRow({ feed, onChanged }: { feed: FeedEntry; onChanged: () =
     formData.set('measure', kind === 'breast' ? 'duration' : 'volume')
     formData.set('amount', String(Math.round(amountValue)))
     formData.set('timestamp', timestamp)
+    formData.set('notes', notes)
     startTransition(async () => {
       await updateFeedAction(formData)
       setEditing(false)
@@ -529,6 +547,7 @@ function FeedActivityRow({ feed, onChanged }: { feed: FeedEntry; onChanged: () =
             <Check className="h-4 w-4" />
           </button>
         </div>
+        <input type="text" value={notes} onChange={(event) => setNotes(event.target.value)} disabled={pending} maxLength={280} placeholder="Note" className="col-span-3 h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground placeholder:text-muted-foreground/50" />
       </div>
     )
   }
@@ -536,7 +555,7 @@ function FeedActivityRow({ feed, onChanged }: { feed: FeedEntry; onChanged: () =
   return (
     <div className="grid grid-cols-[82px_1fr_130px_112px] items-center gap-3 border-b border-muted/40 py-2 text-sm last:border-0">
       <span className="text-xs tabular-nums text-muted-foreground">{formatAppTime(feed.timestamp)}</span>
-      <span className="min-w-0 truncate font-medium text-foreground">{feedLabel(currentKind)}</span>
+      <span className="min-w-0 truncate font-medium text-foreground">{feedLabel(currentKind)}{feed.notes ? <span className="ml-2 font-normal text-muted-foreground">· {feed.notes}</span> : null}</span>
       <span className={`text-right font-semibold tabular-nums ${tone(currentKind)}`}>{feedAmount(feed)}</span>
       <div className="flex justify-end gap-1">
         <button type="button" onClick={() => setEditing(true)} className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Edit feed">
@@ -571,6 +590,8 @@ function NappyActivityRow({ nappy, onChanged }: { nappy: NappyEntry; onChanged: 
   const [editing, setEditing] = useState(false)
   const [type, setType] = useState(nappy.type)
   const [timestamp, setTimestamp] = useState(formatAppDateTimeLocal(nappy.timestamp))
+  const [size, setSize] = useState(nappy.size || '')
+  const [notes, setNotes] = useState(nappy.notes || '')
   const [pending, startTransition] = useTransition()
 
   function save() {
@@ -578,6 +599,8 @@ function NappyActivityRow({ nappy, onChanged }: { nappy: NappyEntry; onChanged: 
     formData.set('id', nappy.id)
     formData.set('type', type)
     formData.set('timestamp', timestamp)
+    formData.set('size', size)
+    formData.set('notes', notes)
     startTransition(async () => {
       await updateNappyAction(formData)
       setEditing(false)
@@ -604,6 +627,12 @@ function NappyActivityRow({ nappy, onChanged }: { nappy: NappyEntry; onChanged: 
             <Check className="h-4 w-4" />
           </button>
         </div>
+        <div className="col-span-3 grid grid-cols-[110px_1fr] gap-2">
+          <select value={size} onChange={(event) => setSize(event.target.value)} disabled={pending} className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground" aria-label="Nappy size">
+            {NAPPY_SIZES.map(option => <option key={option || 'none'} value={option}>{option ? `Size ${option}` : 'No size'}</option>)}
+          </select>
+          <input type="text" value={notes} onChange={(event) => setNotes(event.target.value)} disabled={pending} maxLength={280} placeholder="Note" className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground placeholder:text-muted-foreground/50" />
+        </div>
       </div>
     )
   }
@@ -611,18 +640,34 @@ function NappyActivityRow({ nappy, onChanged }: { nappy: NappyEntry; onChanged: 
   return (
     <div className="grid grid-cols-[82px_1fr_130px_112px] items-center gap-3 border-b border-muted/40 py-2 text-sm last:border-0">
       <span className="text-xs tabular-nums text-muted-foreground">{formatAppTime(nappy.timestamp)}</span>
-      <span className="min-w-0 truncate font-medium text-foreground">{nappyLabel(nappy)} nappy</span>
-      <span className={`text-right font-semibold capitalize ${tone(nappy.type)}`}>{nappy.type}</span>
+      <span className="min-w-0 truncate font-medium text-foreground">{nappyLabel(nappy)} nappy{nappy.notes ? <span className="ml-2 font-normal text-muted-foreground">· {nappy.notes}</span> : null}</span>
+      <span className={`text-right font-semibold capitalize ${tone(nappy.type)}`}>{nappy.size ? `Size ${nappy.size}` : nappy.type}</span>
       <div className="flex justify-end gap-1">
         <button type="button" onClick={() => setEditing(true)} className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Edit nappy">
           <Pencil className="h-4 w-4" />
         </button>
-        <form action={deleteNappyAction}>
-          <input type="hidden" name="id" value={nappy.id} />
-          <button type="submit" className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-red-500/10 hover:text-red-400" aria-label="Delete nappy">
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </form>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button type="button" className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-red-500/10 hover:text-red-400" aria-label="Delete nappy">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this nappy?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently remove the {nappy.type === 'both' ? 'wet and dirty' : nappy.type} nappy logged at {formatAppTime(nappy.timestamp)}.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <form action={deleteNappyAction}>
+                <input type="hidden" name="id" value={nappy.id} />
+                <AlertDialogAction type="submit" className="bg-red-500 text-white hover:bg-red-400">Delete</AlertDialogAction>
+              </form>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   )
@@ -633,6 +678,7 @@ function PumpActivityRow({ pump, onChanged }: { pump: PumpEntry; onChanged: () =
   const [durationMinutes, setDurationMinutes] = useState(String(Math.round((pump.durationSeconds || 0) / 60)))
   const [volumeMl, setVolumeMl] = useState(pump.volumeMl ? String(pump.volumeMl) : '')
   const [timestamp, setTimestamp] = useState(formatAppDateTimeLocal(pump.timestamp))
+  const [notes, setNotes] = useState(pump.notes || '')
   const [pending, startTransition] = useTransition()
   const durationValue = Number(durationMinutes)
   const volumeValue = Number(volumeMl)
@@ -646,6 +692,7 @@ function PumpActivityRow({ pump, onChanged }: { pump: PumpEntry; onChanged: () =
     formData.set('durationMinutes', String(Math.round(durationValue)))
     formData.set('volumeMl', hasVolume ? String(Math.round(volumeValue)) : '')
     formData.set('timestamp', timestamp)
+    formData.set('notes', notes)
     startTransition(async () => {
       await updatePumpAction(formData)
       setEditing(false)
@@ -669,6 +716,7 @@ function PumpActivityRow({ pump, onChanged }: { pump: PumpEntry; onChanged: () =
             <Check className="h-4 w-4" />
           </button>
         </div>
+        <input type="text" value={notes} onChange={(event) => setNotes(event.target.value)} disabled={pending} maxLength={280} placeholder="Note" className="col-span-3 h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground placeholder:text-muted-foreground/50" />
       </div>
     )
   }
@@ -676,24 +724,40 @@ function PumpActivityRow({ pump, onChanged }: { pump: PumpEntry; onChanged: () =
   return (
     <div className="grid grid-cols-[82px_1fr_130px_112px] items-center gap-3 border-b border-muted/40 py-2 text-sm last:border-0">
       <span className="text-xs tabular-nums text-muted-foreground">{formatAppTime(pump.timestamp)}</span>
-      <span className="min-w-0 truncate font-medium text-foreground">Pump session</span>
+      <span className="min-w-0 truncate font-medium text-foreground">Pump session{pump.notes ? <span className="ml-2 font-normal text-muted-foreground">· {pump.notes}</span> : null}</span>
       <span className="text-right font-semibold tabular-nums text-emerald-400">{pumpDetail(pump)}</span>
       <div className="flex justify-end gap-1">
         <button type="button" onClick={() => setEditing(true)} className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Edit pump">
           <Pencil className="h-4 w-4" />
         </button>
-        <form action={deletePumpAction}>
-          <input type="hidden" name="id" value={pump.id} />
-          <button type="submit" className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-red-500/10 hover:text-red-400" aria-label="Delete pump">
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </form>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button type="button" className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-red-500/10 hover:text-red-400" aria-label="Delete pump">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this pump session?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently remove the pump session logged at {formatAppTime(pump.timestamp)}.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <form action={deletePumpAction}>
+                <input type="hidden" name="id" value={pump.id} />
+                <AlertDialogAction type="submit" className="bg-red-500 text-white hover:bg-red-400">Delete</AlertDialogAction>
+              </form>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   )
 }
 
-function RecentActivity({ items, onChanged, dayLabel }: { items: HistoryItem[]; onChanged: () => void; dayLabel: string }) {
+function RecentActivity({ items, onChanged, dayLabel, detailsHref }: { items: HistoryItem[]; onChanged: () => void; dayLabel: string; detailsHref: string }) {
   return (
     <section className="rounded-xl border border-muted bg-muted/10 p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -701,7 +765,7 @@ function RecentActivity({ items, onChanged, dayLabel }: { items: HistoryItem[]; 
           <h2 className="text-lg font-semibold text-foreground">Recent activity</h2>
           <p className="text-sm text-muted-foreground">{dayLabel}</p>
         </div>
-        <a href="/history?type=all&range=24h" className="text-sm font-medium text-muted-foreground hover:text-foreground">
+        <a href={detailsHref} className="text-sm font-medium text-muted-foreground hover:text-foreground">
           Details
         </a>
       </div>
@@ -738,6 +802,9 @@ export function DesktopHomePanel({
     lastFeed: FeedEntry | null
     lastNappy: NappyEntry | null
     lastPump: PumpEntry | null
+    dayLastFeed: FeedEntry | null
+    dayLastNappy: NappyEntry | null
+    dayLastPump: PumpEntry | null
     summary: DailySummary
   }
   history: {
@@ -768,13 +835,14 @@ export function DesktopHomePanel({
     router.refresh()
   }
 
-  function logFeed(kind: FeedKind, amount: number, timestamp: string) {
+  function logFeed(kind: FeedKind, amount: number, timestamp: string, notes: string) {
     const rounded = Math.round(amount)
     const formData = new FormData()
     formData.set('type', kind === 'formula' ? 'formula' : 'breast')
     formData.set('measure', kind === 'breast' ? 'duration' : 'volume')
     formData.set('amount', String(rounded))
     formData.set('timestamp', timestamp)
+    formData.set('notes', notes)
     setPendingKey(`${kind}-${rounded}`)
     startTransition(async () => {
       try {
@@ -787,10 +855,12 @@ export function DesktopHomePanel({
     })
   }
 
-  function logNappy(type: NappyEntry['type'], timestamp: string) {
+  function logNappy(type: NappyEntry['type'], timestamp: string, size: string, notes: string) {
     const formData = new FormData()
     formData.set('type', type)
     formData.set('timestamp', timestamp)
+    formData.set('size', size)
+    formData.set('notes', notes)
     setPendingKey(`nappy-${type}`)
     startTransition(async () => {
       try {
@@ -803,13 +873,14 @@ export function DesktopHomePanel({
     })
   }
 
-  function logPump(durationMinutes: number, volumeMl: number | undefined, timestamp: string) {
+  function logPump(durationMinutes: number, volumeMl: number | undefined, timestamp: string, notes: string) {
     const roundedDuration = Math.round(durationMinutes)
     const roundedVolume = typeof volumeMl === 'number' ? Math.round(volumeMl) : undefined
     const formData = new FormData()
     formData.set('durationMinutes', String(roundedDuration))
     formData.set('volumeMl', roundedVolume ? String(roundedVolume) : '')
     formData.set('timestamp', timestamp)
+    formData.set('notes', notes)
     setPendingKey(`pump-${roundedDuration}-${roundedVolume ?? 'na'}`)
     startTransition(async () => {
       try {
@@ -825,10 +896,17 @@ export function DesktopHomePanel({
   return (
     <div className="hidden min-h-[calc(100vh-11rem)] gap-4 lg:grid">
       <section className="flex items-center justify-between gap-4 rounded-xl border border-muted bg-muted/10 p-3">
-        <Link href={dayNavigation.previousHref} className="inline-flex h-10 items-center gap-2 rounded-lg border border-muted/60 bg-background/60 px-3 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground" aria-label="Previous day">
-          <ChevronLeft className="h-4 w-4" />
-          Back
-        </Link>
+        {dayNavigation.previousHref ? (
+          <Link href={dayNavigation.previousHref} className="inline-flex h-10 items-center gap-2 rounded-lg border border-muted/60 bg-background/60 px-3 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground" aria-label="Previous day">
+            <ChevronLeft className="h-4 w-4" />
+            Back
+          </Link>
+        ) : (
+          <span className="inline-flex h-10 items-center gap-2 rounded-lg border border-muted/40 bg-muted/10 px-3 text-sm font-semibold text-muted-foreground/35" aria-hidden="true">
+            <ChevronLeft className="h-4 w-4" />
+            Back
+          </span>
+        )}
         <div className="text-center">
           <p className="text-lg font-semibold text-foreground">{dayNavigation.label}</p>
           <p className="text-xs tabular-nums text-muted-foreground">{dayNavigation.selectedKey}</p>
@@ -848,13 +926,21 @@ export function DesktopHomePanel({
 
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-6">
         <StatTile
-          label="Next feed"
-          value={nextFeed?.value ?? formatTimeSince(overview.lastFeed?.timestamp ?? null, now)}
-          helper={nextFeed?.helper}
-          emphasis={nextFeed?.status === 'later' ? 'default' : nextFeed?.status}
+          label={dayNavigation.isToday ? 'Next feed' : 'Day feed'}
+          value={dayNavigation.isToday ? nextFeed?.value ?? formatTimeSince(overview.lastFeed?.timestamp ?? null, now) : overview.dayLastFeed ? formatAppTime(overview.dayLastFeed.timestamp) : '--'}
+          helper={dayNavigation.isToday ? nextFeed?.helper : overview.dayLastFeed ? feedAmount(overview.dayLastFeed) : 'No feed'}
+          emphasis={dayNavigation.isToday ? nextFeed?.status === 'later' ? 'default' : nextFeed?.status : 'default'}
         />
-        <StatTile label="Since nappy" value={formatTimeSince(overview.lastNappy?.timestamp ?? null, now)} helper={overview.lastNappy ? `${nappyLabel(overview.lastNappy)} nappy` : undefined} />
-        <StatTile label="Since pump" value={formatTimeSince(overview.lastPump?.timestamp ?? null, now)} helper={overview.lastPump ? pumpDetail(overview.lastPump) : undefined} />
+        <StatTile
+          label={dayNavigation.isToday ? 'Since nappy' : 'Day nappy'}
+          value={dayNavigation.isToday ? formatTimeSince(overview.lastNappy?.timestamp ?? null, now) : overview.dayLastNappy ? formatAppTime(overview.dayLastNappy.timestamp) : '--'}
+          helper={dayNavigation.isToday ? overview.lastNappy ? `${nappyLabel(overview.lastNappy)} nappy` : undefined : overview.dayLastNappy ? `${nappyLabel(overview.dayLastNappy)} nappy` : 'No nappy'}
+        />
+        <StatTile
+          label={dayNavigation.isToday ? 'Since pump' : 'Day pump'}
+          value={dayNavigation.isToday ? formatTimeSince(overview.lastPump?.timestamp ?? null, now) : overview.dayLastPump ? formatAppTime(overview.dayLastPump.timestamp) : '--'}
+          helper={dayNavigation.isToday ? overview.lastPump ? pumpDetail(overview.lastPump) : undefined : overview.dayLastPump ? pumpDetail(overview.dayLastPump) : 'No pump'}
+        />
         <StatTile label={dayNavigation.isToday ? 'Today feeds' : 'Day feeds'} value={String(todaySummary.feedSessionCount)} helper={`${todaySummary.feedCount} feed entries`} />
         <StatTile label={dayNavigation.isToday ? 'Today nappies' : 'Day nappies'} value={String(todaySummary.nappyCount)} helper={`${todaySummary.wetCount} wet, ${todaySummary.dirtyCount} dirty`} />
         <StatTile label={dayNavigation.isToday ? 'Today pump' : 'Day pump'} value={`${todaySummary.totalPumpMl}ml`} helper={`${todaySummary.pumpCount} sessions, ${todaySummary.totalPumpMinutes}m`} />
@@ -874,7 +960,7 @@ export function DesktopHomePanel({
         <CompactAnalytics data={analytics.data} />
       </div>
 
-      <RecentActivity items={history.items} onChanged={refresh} dayLabel={dayNavigation.label} />
+      <RecentActivity items={history.items} onChanged={refresh} dayLabel={dayNavigation.label} detailsHref={dayNavigation.historyHref} />
     </div>
   )
 }

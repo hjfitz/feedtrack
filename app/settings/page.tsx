@@ -16,6 +16,7 @@ export default async function SettingsPage() {
         babyDob={meta?.babyDob || ''}
         feedingIntervalMinutes={meta?.feedingIntervalMinutes || ''}
         isAccountSession={Boolean(session.username)}
+        username={session.username || ''}
       />
     </AppShell>
   )

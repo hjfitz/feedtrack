@@ -23,6 +23,7 @@ export function historyRangeStart(range: TimeRange) {
   if (range === 'today') {
     return startOfAppDay(now)
   }
+  if (range === 'day') return startOfAppDay(now)
   if (range === '12h') return new Date(now.getTime() - 12 * 60 * 60 * 1000)
   if (range === '24h') return new Date(now.getTime() - 24 * 60 * 60 * 1000)
   return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
@@ -74,13 +75,13 @@ export async function getHistoryPanelData(householdId: string, type: FilterType,
   }
 }
 
-export async function getHistoryDayData(householdId: string, date: Date) {
+export async function getHistoryDayData(householdId: string, date: Date, type: FilterType = 'all') {
   const start = startOfAppDay(date)
   const end = addAppDays(start, 1)
   const [feeds, nappies, pumps] = await Promise.all([
-    getFeeds(householdId, start),
-    getNappies(householdId, start),
-    getPumps(householdId, start),
+    type === 'nappies' || type === 'pumps' ? Promise.resolve([]) : getFeeds(householdId, start),
+    type === 'feeds' || type === 'pumps' ? Promise.resolve([]) : getNappies(householdId, start),
+    type === 'feeds' || type === 'nappies' ? Promise.resolve([]) : getPumps(householdId, start),
   ])
   const items: HistoryItem[] = [
     ...feeds.filter(feed => new Date(feed.timestamp) < end).map(feed => ({ id: feed.id, type: 'feed' as const, timestamp: new Date(feed.timestamp), data: feed })),
@@ -91,8 +92,8 @@ export async function getHistoryDayData(householdId: string, date: Date) {
   return {
     items,
     groupedItems: groupHistoryItems(items),
-    type: 'all' as const,
-    range: 'today' as const,
+    type,
+    range: 'day' as const,
     exportHref: `/api/export?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`,
   }
 }

@@ -85,14 +85,23 @@ export async function getAnalyticsPanelData(householdId: string) {
 
   const todayStart = startOfAppDay()
   const todayKey = appDateKey(todayStart)
+  const yesterdayKey = appDateKey(addAppDays(todayStart, -1))
+  const currentHour = appHour(new Date())
   const dailyData = Array.from({ length: DAYS_TO_LOAD }, (_, index) => {
     const d = addAppDays(todayStart, -(DAYS_TO_LOAD - 1 - index))
     return emptyPoint(chartLabel(d), appDateKey(d))
   })
   const hourlyData = Array.from({ length: 24 }, (_, hour) => emptyPoint(hourLabel(hour), todayKey))
+  const previousHourlyData = Array.from({ length: 24 }, (_, hour) => emptyPoint(hourLabel(hour), yesterdayKey))
   const dayMap = new Map(dailyData.map(day => [day.rawDate, day]))
   const hourMap = new Map(hourlyData.map((hour, index) => [index, hour]))
+  const previousHourMap = new Map(previousHourlyData.map((hour, index) => [index, hour]))
   const feedSessionTimestamps: string[] = []
+  const hourFor = (dateKey: string, timestamp: Date) => {
+    if (dateKey === todayKey) return hourMap.get(appHour(timestamp)) || null
+    if (dateKey === yesterdayKey) return previousHourMap.get(appHour(timestamp)) || null
+    return null
+  }
 
   feedSessionStarts(feeds).forEach(timestamp => {
     const dateKey = appDateKey(timestamp)
@@ -102,7 +111,7 @@ export async function getAnalyticsPanelData(householdId: string) {
     day.feedSessionCount += 1
     feedSessionTimestamps.push(timestamp.toISOString())
 
-    const hour = dateKey === todayKey ? hourMap.get(appHour(timestamp)) : null
+    const hour = hourFor(dateKey, timestamp)
     if (hour) hour.feedSessionCount += 1
   })
 
@@ -114,7 +123,7 @@ export async function getAnalyticsPanelData(householdId: string) {
 
     day.feedCount += 1
 
-    const hour = dateKey === todayKey ? hourMap.get(appHour(timestamp)) : null
+    const hour = hourFor(dateKey, timestamp)
     if (hour) hour.feedCount += 1
 
     if (feed.type === 'breast') {
@@ -148,7 +157,7 @@ export async function getAnalyticsPanelData(householdId: string) {
     day.pumpMins += Math.round((pump.durationSeconds || 0) / 60)
     day.pumpMl += pump.volumeMl || 0
 
-    const hour = dateKey === todayKey ? hourMap.get(appHour(timestamp)) : null
+    const hour = hourFor(dateKey, timestamp)
     if (hour) {
       hour.pumpCount += 1
       hour.pumpMins += Math.round((pump.durationSeconds || 0) / 60)
@@ -161,7 +170,7 @@ export async function getAnalyticsPanelData(householdId: string) {
     const dateKey = appDateKey(timestamp)
     const day = dayMap.get(dateKey)
     if (!day) return
-    const hour = dateKey === todayKey ? hourMap.get(appHour(timestamp)) : null
+    const hour = hourFor(dateKey, timestamp)
 
     if (nappy.type === 'wet') {
       day.wetOnly += 1
@@ -194,6 +203,8 @@ export async function getAnalyticsPanelData(householdId: string) {
   return {
     data: dailyData,
     hourlyData,
+    previousHourlyData,
+    currentHour,
     feedSessionTimestamps,
   }
 }

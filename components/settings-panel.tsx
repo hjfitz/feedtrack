@@ -47,7 +47,7 @@ function BabyDetailsForm({
   )
 }
 
-function ChangePasswordForm() {
+function ChangePasswordForm({ username }: { username: string }) {
   const formRef = useRef<HTMLFormElement>(null)
   const [state, action] = useActionState(changePasswordAction, { error: '' })
 
@@ -62,10 +62,7 @@ function ChangePasswordForm() {
       {state.error && <div className="rounded-xl bg-red-500/15 border border-red-500/30 px-4 py-3 text-red-400 text-sm">{state.error}</div>}
       {state.success && <div className="rounded-xl bg-sky-500/15 border border-sky-500/30 px-4 py-3 text-sky-400 text-sm">{state.success}</div>}
 
-      <div className="flex flex-col gap-2">
-        <label htmlFor="change-password-username" className="text-sm text-muted-foreground">Username</label>
-        <input id="change-password-username" name="username" type="text" autoComplete="username" autoCapitalize="off" className="h-12 rounded-xl bg-background border border-border px-4 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50" required />
-      </div>
+      <input type="hidden" name="username" value={username} readOnly />
 
       <div className="flex flex-col gap-2">
         <label htmlFor="current-password" className="text-sm text-muted-foreground">Current password</label>
@@ -151,12 +148,14 @@ export function SettingsPanel({
   babyDob,
   feedingIntervalMinutes,
   isAccountSession,
+  username,
 }: {
   inviteCode: string | null
   babyName: string
   babyDob: string
   feedingIntervalMinutes: number | ''
   isAccountSession: boolean
+  username: string
 }) {
   const [copied, setCopied] = useState(false)
 
@@ -207,11 +206,11 @@ export function SettingsPanel({
 
       <section className="rounded-xl bg-muted/40 border border-muted p-4">
         <h2 className="text-lg font-semibold text-foreground">Account</h2>
-        <p className="text-sm text-muted-foreground mt-1">Signed in</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          {isAccountSession ? `Signed in as ${username}` : 'Signed in with this household invite code'}
+        </p>
 
-        {!isAccountSession && <CreateHouseholdAccountForm />}
-
-        <ChangePasswordForm />
+        {isAccountSession ? <ChangePasswordForm username={username} /> : <CreateHouseholdAccountForm />}
 
         <div className="mt-6 border-t border-muted/60 pt-4">
           <h3 className="text-base font-semibold text-foreground">Join another household</h3>

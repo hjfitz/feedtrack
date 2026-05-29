@@ -5,6 +5,7 @@ import { addNappy, AppError, getNappies, parseDate } from '@/lib/server/tracker'
 interface NappyBody {
   type?: 'wet' | 'dirty' | 'both'
   timestamp?: string
+  size?: 'N' | '1' | '2' | '3' | '4' | '5' | '6' | '7'
   notes?: string
 }
 
