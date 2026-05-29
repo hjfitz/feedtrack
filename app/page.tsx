@@ -29,6 +29,7 @@ export default async function HomePage({
     isToday,
     previousHref: `/?date=${previousKey}`,
     nextHref: isToday ? null : nextKey === todayKey ? '/' : `/?date=${nextKey}`,
+    todayKey,
   }
   const [data, historyData, analyticsData, meta] = await Promise.all([
     getOverviewData(householdId, selectedDate),

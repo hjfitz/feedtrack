@@ -116,17 +116,40 @@ export async function getHoursSummary(householdId: string, hours: number): Promi
 }
 
 export async function getOverviewData(householdId: string, date?: Date) {
+  const selectedStart = date ? startOfAppDay(date) : null
+  const selectedEnd = selectedStart ? addAppDays(selectedStart, 1) : null
   const [feeds, nappies, pumps, summary] = await Promise.all([
     getFeeds(householdId),
     getNappies(householdId),
     getPumps(householdId),
     date ? getDaySummary(householdId, date) : getTodaySummary(householdId),
   ])
+  const dayFeeds = selectedStart && selectedEnd
+    ? feeds.filter(feed => {
+      const timestamp = new Date(feed.timestamp)
+      return timestamp >= selectedStart && timestamp < selectedEnd
+    })
+    : feeds
+  const dayNappies = selectedStart && selectedEnd
+    ? nappies.filter(nappy => {
+      const timestamp = new Date(nappy.timestamp)
+      return timestamp >= selectedStart && timestamp < selectedEnd
+    })
+    : nappies
+  const dayPumps = selectedStart && selectedEnd
+    ? pumps.filter(pump => {
+      const timestamp = new Date(pump.timestamp)
+      return timestamp >= selectedStart && timestamp < selectedEnd
+    })
+    : pumps
 
   return {
     lastFeed: feeds[0] || null,
     lastNappy: nappies[0] || null,
     lastPump: pumps[0] || null,
+    dayLastFeed: dayFeeds[0] || null,
+    dayLastNappy: dayNappies[0] || null,
+    dayLastPump: dayPumps[0] || null,
     summary,
   }
 }

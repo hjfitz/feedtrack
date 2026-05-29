@@ -1,16 +1,19 @@
 'use client'
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { addFeedAction, addNappyAction, addPumpAction } from '@/app/actions/tracker'
+import { Calendar } from '@/components/ui/calendar'
 import {
   Dialog,
+  DialogDescription,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Spinner } from '@/components/ui/spinner'
 import { formatAppDateTimeLocal, formatAppTime } from '@/lib/timezone'
 import type { DailySummary, FeedEntry, NappyEntry, PumpEntry } from '@/lib/types'
 
@@ -81,6 +84,7 @@ interface DayNavigation {
   isToday: boolean
   previousHref: string
   nextHref: string | null
+  todayKey: string
 }
 
 function formatFeedDetail(feed: FeedEntry) {
@@ -93,10 +97,31 @@ function formatPumpVolume(volumeMl?: number) {
   return volumeMl ? `${volumeMl}ml` : 'n/a'
 }
 
+function formatPumpDetail(pump: PumpEntry) {
+  return `${Math.round((pump.durationSeconds || 0) / 60)}m · ${formatPumpVolume(pump.volumeMl)}`
+}
+
+function dateFromKey(key: string) {
+  const [year, month, day] = key.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+function keyFromDate(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+function hrefForDateKey(key: string, todayKey: string) {
+  return key === todayKey ? '/' : `/?date=${key}`
+}
+
 export function HomePanel({
   lastFeed,
   lastNappy,
   lastPump,
+  dayLastFeed,
+  dayLastNappy,
+  dayLastPump,
   summary,
   feedingIntervalMinutes,
   dayNavigation,
@@ -104,10 +129,14 @@ export function HomePanel({
   lastFeed: FeedEntry | null
   lastNappy: NappyEntry | null
   lastPump: PumpEntry | null
+  dayLastFeed: FeedEntry | null
+  dayLastNappy: NappyEntry | null
+  dayLastPump: PumpEntry | null
   summary: DailySummary
   feedingIntervalMinutes?: number
   dayNavigation: DayNavigation
 }) {
+  const router = useRouter()
   const [mode, setMode] = useState<QuickLogMode>('home')
   const [confirmation, setConfirmation] = useState<ConfirmationType>(null)
   const [confirmationDetail, setConfirmationDetail] = useState('')
@@ -119,11 +148,13 @@ export function HomePanel({
   const [feedTimestamp, setFeedTimestamp] = useState(() => formatAppDateTimeLocal(new Date()))
   const [pumpTimestamp, setPumpTimestamp] = useState(() => formatAppDateTimeLocal(new Date()))
   const [nappyOpen, setNappyOpen] = useState(false)
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
   const [nappyType, setNappyType] = useState<'wet' | 'dirty' | 'both'>('wet')
   const [nappyTimestamp, setNappyTimestamp] = useState(() => formatAppDateTimeLocal(new Date()))
   const [pendingKey, setPendingKey] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
   const [isPending, startTransition] = useTransition()
+  const [isNavigating, startNavigation] = useTransition()
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 30000)
@@ -140,6 +171,8 @@ export function HomePanel({
   }, [confirmation])
 
   const isLogging = isPending || pendingKey !== null
+  const selectedDate = useMemo(() => dateFromKey(dayNavigation.selectedKey), [dayNavigation.selectedKey])
+  const todayDate = useMemo(() => dateFromKey(dayNavigation.todayKey), [dayNavigation.todayKey])
   const customBreastValue = Number(customBreastMinutes)
   const customExpressedValue = Number(customExpressedMl)
   const customFormulaValue = Number(customFormulaMl)
@@ -166,6 +199,20 @@ export function HomePanel({
       : nextFeed?.status === 'soon'
         ? 'text-amber-300'
         : 'text-sky-300'
+
+  function navigateTo(href: string) {
+    if (isNavigating) return
+    startNavigation(() => {
+      router.push(href)
+    })
+  }
+
+  function pickDate(date: Date | undefined) {
+    if (!date) return
+    const key = keyFromDate(date)
+    setDatePickerOpen(false)
+    navigateTo(hrefForDateKey(key, dayNavigation.todayKey))
+  }
 
   const ConfirmationToast = () => {
     if (!confirmation) return null
@@ -425,18 +472,21 @@ export function HomePanel({
 
     return (
       <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-muted/60 bg-muted/20 p-2">
-          <Link href={dayNavigation.previousHref} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-background hover:text-foreground" aria-label="Previous day">
+        <div className={`flex items-center justify-between gap-3 rounded-2xl border border-muted/60 bg-muted/20 p-2 transition-opacity ${isNavigating ? 'opacity-70' : ''}`}>
+          <button type="button" onClick={() => navigateTo(dayNavigation.previousHref)} disabled={isNavigating} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-background hover:text-foreground disabled:cursor-wait disabled:opacity-50" aria-label="Previous day">
             <ChevronLeft className="h-5 w-5" />
-          </Link>
-          <div className="min-w-0 text-center">
-            <p className="truncate text-base font-semibold text-foreground">{dayNavigation.label}</p>
-            <p className="text-xs tabular-nums text-muted-foreground">{dayNavigation.selectedKey}</p>
-          </div>
+          </button>
+          <button type="button" onClick={() => setDatePickerOpen(true)} disabled={isNavigating} className="min-w-0 rounded-xl px-3 py-1 text-center transition-colors hover:bg-background disabled:cursor-wait disabled:opacity-70" aria-label="Choose day">
+            <span className="block truncate text-base font-semibold text-foreground">{isNavigating ? 'Loading day' : dayNavigation.label}</span>
+            <span className="mt-0.5 flex items-center justify-center gap-1 text-xs tabular-nums text-muted-foreground">
+              {isNavigating && <Spinner className="h-3 w-3" />}
+              {dayNavigation.selectedKey}
+            </span>
+          </button>
           {dayNavigation.nextHref ? (
-            <Link href={dayNavigation.nextHref} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-background hover:text-foreground" aria-label="Next day">
+            <button type="button" onClick={() => dayNavigation.nextHref && navigateTo(dayNavigation.nextHref)} disabled={isNavigating} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-background hover:text-foreground disabled:cursor-wait disabled:opacity-50" aria-label="Next day">
               <ChevronRight className="h-5 w-5" />
-            </Link>
+            </button>
           ) : (
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground/30" aria-hidden="true">
               <ChevronRight className="h-5 w-5" />
@@ -444,21 +494,39 @@ export function HomePanel({
           )}
         </div>
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <div className={`min-w-0 rounded-2xl p-3 text-center border transition-colors sm:p-4 ${feedCardClass}`}>
-            <p className={`mb-1 text-[10px] font-semibold uppercase tracking-wide sm:text-xs ${feedLabelClass}`}>Feed</p>
-            <p className="whitespace-nowrap text-lg font-bold text-foreground tabular-nums sm:text-3xl">{nextFeed?.countdown ?? formatTimeSince(lastFeed?.timestamp ?? null, now)}</p>
-            {nextFeed && <p className={`mt-1 truncate text-[11px] font-semibold sm:text-sm ${feedLabelClass}`}>{nextFeed.dueLabel}</p>}
-            {lastFeed && <p className="mt-1 truncate text-[10px] text-muted-foreground sm:text-xs">Last {formatFeedDetail(lastFeed)}</p>}
+          <div className={`min-w-0 rounded-2xl p-3 text-center border transition-colors sm:p-4 ${dayNavigation.isToday ? feedCardClass : 'border-sky-500/20 bg-sky-500/10'}`}>
+            <p className={`mb-1 text-[10px] font-semibold uppercase tracking-wide sm:text-xs ${dayNavigation.isToday ? feedLabelClass : 'text-sky-300'}`}>Feed</p>
+            <p className="whitespace-nowrap text-lg font-bold text-foreground tabular-nums sm:text-3xl">
+              {dayNavigation.isToday
+                ? nextFeed?.countdown ?? formatTimeSince(lastFeed?.timestamp ?? null, now)
+                : dayLastFeed ? formatAppTime(dayLastFeed.timestamp) : '--'}
+            </p>
+            {dayNavigation.isToday && nextFeed && <p className={`mt-1 truncate text-[11px] font-semibold sm:text-sm ${feedLabelClass}`}>{nextFeed.dueLabel}</p>}
+            {dayNavigation.isToday
+              ? lastFeed && <p className="mt-1 truncate text-[10px] text-muted-foreground sm:text-xs">Last {formatFeedDetail(lastFeed)}</p>
+              : <p className="mt-1 truncate text-[10px] text-muted-foreground sm:text-xs">{dayLastFeed ? formatFeedDetail(dayLastFeed) : 'No feed'}</p>}
           </div>
           <div className="min-w-0 rounded-2xl bg-violet-500/10 p-3 text-center border border-violet-500/20 sm:p-4">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-violet-300 sm:text-xs">Nappy</p>
-            <p className="whitespace-nowrap text-xl font-bold text-foreground tabular-nums sm:text-3xl">{formatTimeSince(lastNappy?.timestamp ?? null, now)}</p>
-            {lastNappy && <p className="mt-1 truncate text-[11px] text-muted-foreground capitalize sm:text-sm">{lastNappy.type === 'both' ? 'Wet + Dirty' : lastNappy.type}</p>}
+            <p className="whitespace-nowrap text-xl font-bold text-foreground tabular-nums sm:text-3xl">
+              {dayNavigation.isToday ? formatTimeSince(lastNappy?.timestamp ?? null, now) : dayLastNappy ? formatAppTime(dayLastNappy.timestamp) : '--'}
+            </p>
+            <p className="mt-1 truncate text-[11px] text-muted-foreground capitalize sm:text-sm">
+              {dayNavigation.isToday
+                ? lastNappy ? lastNappy.type === 'both' ? 'Wet + Dirty' : lastNappy.type : 'No nappy'
+                : dayLastNappy ? dayLastNappy.type === 'both' ? 'Wet + Dirty' : dayLastNappy.type : 'No nappy'}
+            </p>
           </div>
           <div className="min-w-0 rounded-2xl bg-emerald-500/10 p-3 text-center border border-emerald-500/20 sm:p-4">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300 sm:text-xs">Pump</p>
-            <p className="whitespace-nowrap text-xl font-bold text-foreground tabular-nums sm:text-3xl">{formatTimeSince(lastPump?.timestamp ?? null, now)}</p>
-            {lastPump && <p className="mt-1 truncate text-[11px] text-muted-foreground sm:text-sm">{Math.round((lastPump.durationSeconds || 0) / 60)}m · {formatPumpVolume(lastPump.volumeMl)}</p>}
+            <p className="whitespace-nowrap text-xl font-bold text-foreground tabular-nums sm:text-3xl">
+              {dayNavigation.isToday ? formatTimeSince(lastPump?.timestamp ?? null, now) : dayLastPump ? formatAppTime(dayLastPump.timestamp) : '--'}
+            </p>
+            <p className="mt-1 truncate text-[11px] text-muted-foreground sm:text-sm">
+              {dayNavigation.isToday
+                ? lastPump ? formatPumpDetail(lastPump) : 'No pump'
+                : dayLastPump ? formatPumpDetail(dayLastPump) : 'No pump'}
+            </p>
           </div>
         </div>
         <div className="rounded-2xl bg-muted/30 p-4 border border-muted/50">
@@ -551,12 +619,28 @@ export function HomePanel({
         </div>
       </div>
     )
-  }, [canLogCustomBreast, canLogCustomExpressed, canLogCustomFormula, canLogPump, customBreastMinutes, customBreastValue, customExpressedMl, customExpressedValue, customFormulaMl, customFormulaValue, dayNavigation, feedCardClass, feedLabelClass, feedTimestamp, feedingIntervalMinutes, isLogging, lastFeed, lastNappy, lastPump, mode, nextFeed, now, pumpMinutes, pumpMl, pumpTimestamp, summary])
+  }, [canLogCustomBreast, canLogCustomExpressed, canLogCustomFormula, canLogPump, customBreastMinutes, customBreastValue, customExpressedMl, customExpressedValue, customFormulaMl, customFormulaValue, dayLastFeed, dayLastNappy, dayLastPump, dayNavigation, feedCardClass, feedLabelClass, feedTimestamp, isNavigating, isLogging, lastFeed, lastNappy, lastPump, mode, nextFeed, now, pumpMinutes, pumpMl, pumpTimestamp, summary])
 
   return (
     <>
       <ConfirmationToast />
       {mainContent}
+      <Dialog open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+        <DialogContent className="max-w-[calc(100%-2rem)] p-4 sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Choose day</DialogTitle>
+            <DialogDescription>Select a day to review logged activity.</DialogDescription>
+          </DialogHeader>
+          <Calendar
+            mode="single"
+            selected={selectedDate}
+            defaultMonth={selectedDate}
+            disabled={{ after: todayDate }}
+            onSelect={pickDate}
+            className="mx-auto"
+          />
+        </DialogContent>
+      </Dialog>
       <Dialog open={nappyOpen} onOpenChange={(open) => {
         if (isLogging) return
         if (open) openNappyDialog()
