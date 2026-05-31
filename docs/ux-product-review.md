@@ -47,6 +47,7 @@ Run a "sleepy parent" pass on Home: [done]
 - [skipped] History/export pass: add a review-before-export screen with date range, included entry types, CSV preview, and cleaner note expansion in History. Deferred because export polish is less urgent than core daily-use improvements.
 
 ## 3am Logging Popup Passes
+- [done] Compress mobile logging popups by reducing primary presets, densifying grids, compacting pump controls, and removing duplicated time summaries.
 - [done] Highlight timestamp offset buttons and retain an active state after selection.
 - [done] Use friendlier offset copy such as "10 min ago" while keeping compact labels available for dense desktop controls.
 - [done] Reinforce timestamp controls near the final log action with compact "Logging time" summaries.

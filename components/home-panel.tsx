@@ -18,7 +18,7 @@ import { MessSizeControl } from '@/components/logging/mess-size-control'
 import { OptionalNote } from '@/components/logging/optional-note'
 import { TimestampControl } from '@/components/logging/timestamp-control'
 import { formatFeedDetail, formatNappyDetail, formatPumpDetail, formatPumpVolume, formatSummaryMinutes } from '@/lib/entry-format'
-import { BOTTLE_ML_PRESETS, BREAST_FEED_PRESETS, PUMP_DURATION_PRESETS, PUMP_VOLUME_PRESETS } from '@/lib/logging-options'
+import { PRIMARY_BOTTLE_ML_PRESETS, PRIMARY_BREAST_FEED_PRESETS, PRIMARY_PUMP_DURATION_PRESETS, PRIMARY_PUMP_VOLUME_PRESETS } from '@/lib/logging-options'
 import { formatAppDate, formatAppDateTimeLocal, formatAppTime, parseAppDateTimeLocal } from '@/lib/timezone'
 import type { HistoryItem } from '@/lib/server/history-data'
 import type { DailySummary, FeedEntry, NappyEntry, PumpEntry } from '@/lib/types'
@@ -481,9 +481,9 @@ export function HomePanel({
           <TimestampControl id="breast-feed-time" label="Started" value={feedTimestamp} onChange={setFeedTimestamp} disabled={isLogging} />
           <OptionalNote value={feedNotes} onChange={setFeedNotes} disabled={isLogging} />
           <LogTimeSummary value={feedTimestamp} />
-          <div className="grid grid-cols-3 gap-3">
-            {BREAST_FEED_PRESETS.map(mins => (
-              <button key={mins} onClick={() => logFeed('breast', mins, 'duration')} disabled={!feedTimestamp || isLogging} className="py-7 rounded-2xl bg-sky-500/15 border-2 border-sky-500/30 text-sky-400 text-2xl font-bold transition-all duration-150 hover:bg-sky-500/25 hover:border-sky-500/50 hover:scale-[1.02] active:bg-sky-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+          <div className="grid grid-cols-4 gap-2">
+            {PRIMARY_BREAST_FEED_PRESETS.map(mins => (
+              <button key={mins} onClick={() => logFeed('breast', mins, 'duration')} disabled={!feedTimestamp || isLogging} className="h-16 rounded-xl bg-sky-500/15 border-2 border-sky-500/30 text-sky-400 text-xl font-bold transition-all duration-150 hover:bg-sky-500/25 hover:border-sky-500/50 hover:scale-[1.02] active:bg-sky-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
                 {mins}m
               </button>
             ))}
@@ -495,11 +495,11 @@ export function HomePanel({
                 <input id="custom-breast-minutes" type="number" inputMode="numeric" min="1" step="1" value={customBreastMinutes} onChange={(event) => setCustomBreastMinutes(event.target.value)} disabled={isLogging} className="h-14 w-full rounded-xl bg-background border border-border px-4 pr-14 text-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50 disabled:opacity-45 disabled:cursor-not-allowed" placeholder="12" />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">min</span>
               </div>
-              <button type="submit" disabled={!canLogCustomBreast || !feedTimestamp || isLogging} className="h-14 px-5 rounded-xl bg-sky-500 text-white font-semibold hover:bg-sky-400 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                Log
-              </button>
             </div>
             <ReadyToLogSummary label="Breast feed" detail={canLogCustomBreast ? `${Math.round(customBreastValue)}m` : 'Enter custom minutes'} timestamp={feedTimestamp} />
+            <button type="submit" disabled={!canLogCustomBreast || !feedTimestamp || isLogging} className="h-12 rounded-xl bg-sky-500 text-white font-semibold hover:bg-sky-400 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+              Log custom
+            </button>
           </form>
           <button type="button" onClick={() => setMode('home')} className="self-center rounded-lg border border-muted/50 bg-muted/20 px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted/35 hover:text-foreground">Back to home</button>
         </div>
@@ -514,9 +514,9 @@ export function HomePanel({
           <TimestampControl id="expressed-feed-time" label="Time" value={feedTimestamp} onChange={setFeedTimestamp} disabled={isLogging} inputClassName="h-12 rounded-xl border border-border bg-background px-4 text-sm text-foreground focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 disabled:cursor-not-allowed disabled:opacity-45" />
           <OptionalNote value={feedNotes} onChange={setFeedNotes} disabled={isLogging} textareaClassName="rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 disabled:cursor-not-allowed disabled:opacity-45" />
           <LogTimeSummary value={feedTimestamp} tone="border-cyan-500/25 bg-cyan-500/10 text-cyan-300" />
-          <div className="grid grid-cols-3 gap-3">
-            {BOTTLE_ML_PRESETS.map(ml => (
-              <button key={ml} onClick={() => logFeed('breast', ml, 'volume')} disabled={!feedTimestamp || isLogging} className="py-7 rounded-2xl bg-cyan-500/15 border-2 border-cyan-500/30 text-cyan-400 text-2xl font-bold transition-all duration-150 hover:bg-cyan-500/25 hover:border-cyan-500/50 hover:scale-[1.02] active:bg-cyan-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+          <div className="grid grid-cols-4 gap-2">
+            {PRIMARY_BOTTLE_ML_PRESETS.map(ml => (
+              <button key={ml} onClick={() => logFeed('breast', ml, 'volume')} disabled={!feedTimestamp || isLogging} className="h-16 rounded-xl bg-cyan-500/15 border-2 border-cyan-500/30 text-cyan-400 text-xl font-bold transition-all duration-150 hover:bg-cyan-500/25 hover:border-cyan-500/50 hover:scale-[1.02] active:bg-cyan-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
                 {ml}
               </button>
             ))}
@@ -528,11 +528,11 @@ export function HomePanel({
                 <input id="custom-expressed-ml" type="number" inputMode="numeric" min="1" step="1" value={customExpressedMl} onChange={(event) => setCustomExpressedMl(event.target.value)} disabled={isLogging} className="h-14 w-full rounded-xl bg-background border border-border px-4 pr-12 text-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 disabled:opacity-45 disabled:cursor-not-allowed" placeholder="75" />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">ml</span>
               </div>
-              <button type="submit" disabled={!canLogCustomExpressed || !feedTimestamp || isLogging} className="h-14 px-5 rounded-xl bg-cyan-500 text-white font-semibold hover:bg-cyan-400 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                Log
-              </button>
             </div>
             <ReadyToLogSummary label="Breast milk" detail={canLogCustomExpressed ? `${Math.round(customExpressedValue)}ml` : 'Enter custom ml'} timestamp={feedTimestamp} tone="border-cyan-500/25 bg-cyan-500/10" />
+            <button type="submit" disabled={!canLogCustomExpressed || !feedTimestamp || isLogging} className="h-12 rounded-xl bg-cyan-500 text-white font-semibold hover:bg-cyan-400 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+              Log custom
+            </button>
           </form>
           <button type="button" onClick={() => setMode('home')} className="self-center rounded-lg border border-muted/50 bg-muted/20 px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted/35 hover:text-foreground">Back to home</button>
         </div>
@@ -547,9 +547,9 @@ export function HomePanel({
           <TimestampControl id="formula-feed-time" label="Time" value={feedTimestamp} onChange={setFeedTimestamp} disabled={isLogging} inputClassName="h-12 rounded-xl border border-border bg-background px-4 text-sm text-foreground focus:border-amber-500/50 focus:outline-none focus:ring-2 focus:ring-amber-500/50 disabled:cursor-not-allowed disabled:opacity-45" />
           <OptionalNote value={feedNotes} onChange={setFeedNotes} disabled={isLogging} textareaClassName="rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-amber-500/50 focus:outline-none focus:ring-2 focus:ring-amber-500/50 disabled:cursor-not-allowed disabled:opacity-45" />
           <LogTimeSummary value={feedTimestamp} tone="border-amber-500/25 bg-amber-500/10 text-amber-300" />
-          <div className="grid grid-cols-3 gap-3">
-            {BOTTLE_ML_PRESETS.map(ml => (
-              <button key={ml} onClick={() => logFeed('formula', ml, 'volume')} disabled={!feedTimestamp || isLogging} className="py-7 rounded-2xl bg-amber-500/15 border-2 border-amber-500/30 text-amber-400 text-2xl font-bold transition-all duration-150 hover:bg-amber-500/25 hover:border-amber-500/50 hover:scale-[1.02] active:bg-amber-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+          <div className="grid grid-cols-4 gap-2">
+            {PRIMARY_BOTTLE_ML_PRESETS.map(ml => (
+              <button key={ml} onClick={() => logFeed('formula', ml, 'volume')} disabled={!feedTimestamp || isLogging} className="h-16 rounded-xl bg-amber-500/15 border-2 border-amber-500/30 text-amber-400 text-xl font-bold transition-all duration-150 hover:bg-amber-500/25 hover:border-amber-500/50 hover:scale-[1.02] active:bg-amber-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
                 {ml}
               </button>
             ))}
@@ -561,11 +561,11 @@ export function HomePanel({
                 <input id="custom-formula-ml" type="number" inputMode="numeric" min="1" step="1" value={customFormulaMl} onChange={(event) => setCustomFormulaMl(event.target.value)} disabled={isLogging} className="h-14 w-full rounded-xl bg-background border border-border px-4 pr-12 text-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 disabled:opacity-45 disabled:cursor-not-allowed" placeholder="75" />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">ml</span>
               </div>
-              <button type="submit" disabled={!canLogCustomFormula || !feedTimestamp || isLogging} className="h-14 px-5 rounded-xl bg-amber-500 text-white font-semibold hover:bg-amber-400 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                Log
-              </button>
             </div>
             <ReadyToLogSummary label="Formula" detail={canLogCustomFormula ? `${Math.round(customFormulaValue)}ml` : 'Enter custom ml'} timestamp={feedTimestamp} tone="border-amber-500/25 bg-amber-500/10" />
+            <button type="submit" disabled={!canLogCustomFormula || !feedTimestamp || isLogging} className="h-12 rounded-xl bg-amber-500 text-white font-semibold hover:bg-amber-400 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+              Log custom
+            </button>
           </form>
           <button type="button" onClick={() => setMode('home')} className="self-center rounded-lg border border-muted/50 bg-muted/20 px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted/35 hover:text-foreground">Back to home</button>
         </div>
@@ -579,25 +579,21 @@ export function HomePanel({
           <LastLoggedHint label="pump" entry={lastPump} detail={lastPump ? formatPumpDetail(lastPump) : undefined} now={now} />
           <TimestampControl id="pump-time" label="Started" value={pumpTimestamp} onChange={setPumpTimestamp} disabled={isLogging} inputClassName="h-12 rounded-xl border border-border bg-background px-4 text-sm text-foreground focus:border-emerald-500/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-45" />
           <OptionalNote value={pumpNotes} onChange={setPumpNotes} disabled={isLogging} textareaClassName="rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-emerald-500/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-45" />
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
               <p className="text-sm text-muted-foreground">Duration</p>
-              <div className="grid grid-cols-2 gap-2">
-                {PUMP_DURATION_PRESETS.map(mins => (
+              <div className="grid grid-cols-4 gap-2">
+                {PRIMARY_PUMP_DURATION_PRESETS.map(mins => (
                   <button key={mins} type="button" onClick={() => setPumpMinutes(String(mins))} disabled={isLogging} className={`h-12 rounded-xl border text-sm font-bold transition-colors ${pumpMinutes === String(mins) ? 'border-emerald-500/60 bg-emerald-500/20 text-emerald-300' : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-400'} disabled:opacity-45`}>
                     {mins}m
                   </button>
                 ))}
               </div>
-              <div className="relative">
-                <input type="number" inputMode="numeric" min="1" step="1" value={pumpMinutes} onChange={(event) => setPumpMinutes(event.target.value)} disabled={isLogging} className="h-12 w-full rounded-xl bg-background border border-border px-4 pr-14 text-foreground disabled:opacity-45" />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">min</span>
-              </div>
             </div>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               <p className="text-sm text-muted-foreground">Volume</p>
-              <div className="grid grid-cols-2 gap-2">
-                {PUMP_VOLUME_PRESETS.map(ml => (
+              <div className="grid grid-cols-4 gap-2">
+                {PRIMARY_PUMP_VOLUME_PRESETS.map(ml => (
                   <button key={ml} type="button" onClick={() => setPumpMl(String(ml))} disabled={isLogging} className={`h-12 rounded-xl border text-sm font-bold transition-colors ${pumpMl === String(ml) ? 'border-emerald-500/60 bg-emerald-500/20 text-emerald-300' : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-400'} disabled:opacity-45`}>
                     {ml}
                   </button>
@@ -606,13 +602,18 @@ export function HomePanel({
                   n/a
                 </button>
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
               <div className="relative">
-                <input type="number" inputMode="numeric" min="1" step="1" value={pumpMl} onChange={(event) => setPumpMl(event.target.value)} disabled={isLogging} className="h-12 w-full rounded-xl bg-background border border-border px-4 pr-12 text-foreground disabled:opacity-45" placeholder="n/a" />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">ml</span>
+                <input type="number" inputMode="numeric" min="1" step="1" value={pumpMinutes} onChange={(event) => setPumpMinutes(event.target.value)} disabled={isLogging} className="h-11 w-full rounded-xl bg-background border border-border px-3 pr-12 text-sm text-foreground disabled:opacity-45" />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">min</span>
+              </div>
+              <div className="relative">
+                <input type="number" inputMode="numeric" min="1" step="1" value={pumpMl} onChange={(event) => setPumpMl(event.target.value)} disabled={isLogging} className="h-11 w-full rounded-xl bg-background border border-border px-3 pr-10 text-sm text-foreground disabled:opacity-45" placeholder="n/a" />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">ml</span>
               </div>
             </div>
           </div>
-          <LogTimeSummary value={pumpTimestamp} tone="border-emerald-500/25 bg-emerald-500/10 text-emerald-300" />
           <ReadyToLogSummary
             label="Pump session"
             detail={`${Number.isFinite(pumpMinutesValue) && pumpMinutesValue > 0 ? `${Math.round(pumpMinutesValue)}m` : 'Set duration'} · ${hasPumpVolume && Number.isFinite(pumpMlValue) && pumpMlValue > 0 ? `${Math.round(pumpMlValue)}ml` : 'volume n/a'}`}
@@ -852,7 +853,6 @@ export function HomePanel({
               />
             </div>
             <OptionalNote value={nappyNotes} onChange={setNappyNotes} disabled={isLogging} textareaClassName="rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-violet-500/50 focus:outline-none focus:ring-2 focus:ring-violet-500/50 disabled:cursor-not-allowed disabled:opacity-45" />
-            <LogTimeSummary value={nappyTimestamp} tone="border-violet-500/25 bg-violet-500/10 text-violet-300" />
             <ReadyToLogSummary
               label={`${nappyType === 'both' ? 'Wet + dirty' : nappyType} nappy`}
               detail={messSize ? `${messSize} mess` : 'mess not sure'}

@@ -4,6 +4,10 @@ export const BREAST_FEED_PRESETS = [5, 10, 15, 20, 25, 30] as const
 export const BOTTLE_ML_PRESETS = [30, 60, 90, 120, 150, 180] as const
 export const PUMP_DURATION_PRESETS = [10, 15, 20, 25, 30, 40] as const
 export const PUMP_VOLUME_PRESETS = [30, 60, 90, 120, 150, 180] as const
+export const PRIMARY_BREAST_FEED_PRESETS = [10, 15, 20, 25] as const
+export const PRIMARY_BOTTLE_ML_PRESETS = [60, 90, 120, 150] as const
+export const PRIMARY_PUMP_DURATION_PRESETS = [10, 15, 20, 30] as const
+export const PRIMARY_PUMP_VOLUME_PRESETS = [60, 90, 120] as const
 
 export const MESS_SIZE_OPTIONS = [
   { value: '', label: 'n/a' },
