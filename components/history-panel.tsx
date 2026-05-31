@@ -15,18 +15,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import { MessSizeControl } from '@/components/logging/mess-size-control'
+import { NotePreview } from '@/components/logging/note-preview'
+import { feedAmount, feedKind, feedLabel, formatPumpDetail, type FeedKind } from '@/lib/entry-format'
 import { appDateKey, formatAppDate, formatAppDateTimeLocal, formatAppTime } from '@/lib/timezone'
 import type { FeedEntry, NappyEntry, PumpEntry } from '@/lib/types'
 import type { HistoryItem } from '@/lib/server/history-data'
 
 export type FilterType = 'all' | 'feeds' | 'nappies' | 'pumps'
 export type TimeRange = 'today' | '12h' | '24h' | '7d' | 'day'
-const MESS_SIZES = [
-  { value: '', label: 'n/a' },
-  { value: 'small', label: 'Small' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'large', label: 'Large' },
-] as const
 
 function formatTime(date: Date): string {
   return formatAppTime(date)
@@ -39,27 +36,6 @@ function formatDate(date: Date): string {
   if (appDateKey(date) === appDateKey(today)) return 'Today'
   if (appDateKey(date) === appDateKey(yesterday)) return 'Yesterday'
   return formatAppDate(date, { weekday: 'short', day: 'numeric', month: 'short' })
-}
-
-function formatDuration(seconds: number): string {
-  return `${Math.floor(seconds / 60)}m`
-}
-
-function formatPumpDetail(pump: PumpEntry) {
-  return `${formatDuration(pump.durationSeconds)} · ${pump.volumeMl ? `${pump.volumeMl}ml` : 'n/a'}`
-}
-
-type FeedKind = 'breast' | 'expressed' | 'formula'
-
-function feedKind(feed: FeedEntry): FeedKind {
-  if (feed.type === 'formula') return 'formula'
-  return feed.volumeMl ? 'expressed' : 'breast'
-}
-
-function feedLabel(kind: FeedKind) {
-  if (kind === 'expressed') return 'Breast milk'
-  if (kind === 'breast') return 'Breast feed'
-  return 'Formula'
 }
 
 function feedTone(kind: FeedKind) {
@@ -139,10 +115,11 @@ function FeedItem({ feed }: { feed: FeedEntry }) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground">{feedLabel(kindForFeed)}</p>
-        <p className="text-xs text-muted-foreground">{formatTime(feed.timestamp)}{feed.notes ? ` · ${feed.notes}` : ''}</p>
+        <p className="text-xs text-muted-foreground">{formatTime(feed.timestamp)}</p>
+        <NotePreview note={feed.notes} className="mt-1" />
       </div>
       <div className="text-right">
-        <p className={`text-sm font-semibold ${feedTone(kindForFeed)}`}>{kindForFeed === 'breast' ? formatDuration(feed.durationSeconds || 0) : `${feed.volumeMl || 0}ml`}</p>
+        <p className={`text-sm font-semibold ${feedTone(kindForFeed)}`}>{feedAmount(feed)}</p>
       </div>
       <div className="flex gap-1 shrink-0">
         <button type="button" onClick={() => setEditing(true)} className="h-9 w-9 rounded-lg grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" aria-label="Edit feed" title="Edit feed">
@@ -216,13 +193,13 @@ function NappyItem({ nappy }: { nappy: NappyEntry }) {
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_260px]">
           <input type="datetime-local" value={timestamp} onChange={(event) => setTimestamp(event.target.value)} disabled={isPending} className="h-11 rounded-lg bg-background border border-border px-3 text-sm text-foreground disabled:opacity-50 disabled:cursor-not-allowed" />
-          <div className="grid grid-cols-4 gap-1">
-            {MESS_SIZES.map(option => (
-              <button key={option.value || 'none'} type="button" onClick={() => setMessSize(option.value)} disabled={isPending} className={`h-11 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${messSize === option.value ? 'bg-violet-500 text-white' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
-                {option.label}
-              </button>
-            ))}
-          </div>
+          <MessSizeControl
+            value={messSize}
+            onChange={setMessSize}
+            disabled={isPending}
+            className="grid grid-cols-4 gap-1"
+            buttonClassName="h-11 rounded-lg text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          />
         </div>
         <textarea value={notes} onChange={(event) => setNotes(event.target.value)} disabled={isPending} rows={2} maxLength={280} placeholder="Optional note" className="rounded-lg bg-background border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 disabled:opacity-50 disabled:cursor-not-allowed" />
         <div className="flex justify-end gap-2">
@@ -244,7 +221,8 @@ function NappyItem({ nappy }: { nappy: NappyEntry }) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground capitalize">{nappy.type === 'both' ? 'Wet & Dirty' : nappy.type} nappy</p>
-        <p className="text-xs text-muted-foreground">{formatTime(nappy.timestamp)}{nappy.messSize ? ` · ${nappy.messSize} mess` : ''}{nappy.notes ? ` · ${nappy.notes}` : ''}</p>
+        <p className="text-xs text-muted-foreground">{formatTime(nappy.timestamp)}{nappy.messSize ? ` · ${nappy.messSize} mess` : ''}</p>
+        <NotePreview note={nappy.notes} className="mt-1" />
       </div>
       <div className={`text-sm font-semibold capitalize ${c.text}`}>{nappy.type}</div>
       <div className="flex gap-1 shrink-0">
@@ -340,7 +318,8 @@ function PumpItem({ pump }: { pump: PumpEntry }) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground">Pump session</p>
-        <p className="text-xs text-muted-foreground">{formatTime(pump.timestamp)}{pump.notes ? ` · ${pump.notes}` : ''}</p>
+        <p className="text-xs text-muted-foreground">{formatTime(pump.timestamp)}</p>
+        <NotePreview note={pump.notes} className="mt-1" />
       </div>
       <div className="text-sm font-semibold text-emerald-400 tabular-nums">{formatPumpDetail(pump)}</div>
       <div className="flex gap-1 shrink-0">

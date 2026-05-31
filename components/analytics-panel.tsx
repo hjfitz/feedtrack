@@ -155,6 +155,18 @@ function activityValue(day: AnalyticsDataPoint, category: CategoryOption) {
   return day.feedSessionCount
 }
 
+function totalTrackedEvents(totals: Totals) {
+  return totals.feedSessionCount + totals.totalNappies + totals.pumpCount
+}
+
+function selectedActivity(summary: SummaryModel, category: CategoryOption, feedView: FeedViewOption) {
+  if (category === 'nappies') return summary.totals.totalNappies
+  if (category === 'pumps') return summary.totals.pumpCount
+  if (feedView === 'formula') return summary.totals.formulaCount
+  if (feedView === 'breast') return summary.totals.breastCount
+  return summary.totals.feedSessionCount
+}
+
 function rangeLabel(range: RangeOption) {
   if (range === '1d') return 'Today'
   if (range === '7d') return 'Last 7 days'
@@ -224,11 +236,85 @@ function InsightTile({
   )
 }
 
-function EmptyChart({ label }: { label: string }) {
+function EmptyChart({ label, helper }: { label: string; helper?: string }) {
   return (
     <div className="grid h-full min-h-52 place-items-center rounded-lg border border-dashed border-muted/60 px-6 text-center">
-      <p className="text-sm text-muted-foreground">{label}</p>
+      <div>
+        <p className="text-sm font-semibold text-foreground">{label}</p>
+        {helper && <p className="mt-2 max-w-sm text-sm text-muted-foreground">{helper}</p>}
+        <a href="/" className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-foreground px-4 text-sm font-semibold text-background transition-colors hover:bg-foreground/90">
+          Log an entry
+        </a>
+      </div>
     </div>
+  )
+}
+
+function FirstRunState() {
+  return (
+    <section className="rounded-xl border border-sky-500/25 bg-sky-500/10 p-4">
+      <div className="flex items-start gap-3">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-sky-500/15 text-sky-300">
+          <Baby className="h-5 w-5" aria-hidden="true" />
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-base font-semibold text-foreground">Analytics will fill in as you log</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Start with feeds and nappies. After a few entries, this page will show day-to-day patterns, measured milk, and quiet stretches without needing perfect data.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <span className="rounded-lg border border-sky-500/20 bg-background/35 px-3 py-2">Feed sessions establish rhythm</span>
+            <span className="rounded-lg border border-blue-500/20 bg-background/35 px-3 py-2">Wet nappies add useful context</span>
+            <span className="rounded-lg border border-emerald-500/20 bg-background/35 px-3 py-2">Pump logs are optional</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function LowDataState({
+  category,
+  feedView,
+  range,
+  summary,
+}: {
+  category: CategoryOption
+  feedView: FeedViewOption
+  range: RangeOption
+  summary: SummaryModel
+}) {
+  const activity = selectedActivity(summary, category, feedView)
+  const hasAnyRangeData = totalTrackedEvents(summary.totals) > 0
+  const isVeryLow = range === '1d'
+    ? hasAnyRangeData && activity < 2
+    : hasAnyRangeData && (summary.activeDays < 3 || activity < 3)
+
+  if (!isVeryLow) return null
+
+  const categoryLabel = category === 'feeds'
+    ? feedView === 'formula'
+      ? 'formula logs'
+      : feedView === 'breast'
+        ? 'breast feed logs'
+        : 'feed sessions'
+    : category === 'nappies'
+      ? 'nappy changes'
+      : 'pump sessions'
+  const message = range === '1d'
+    ? `Today has ${activity} ${categoryLabel} so far. That is enough for a snapshot, but comparisons can swing a lot early in the day.`
+    : `${rangeLabel(range)} has ${summary.activeDays} active ${summary.activeDays === 1 ? 'day' : 'days'} for this view. Trends become easier to trust after three or more active days.`
+
+  return (
+    <section className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3">
+      <div className="flex items-start gap-3">
+        <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" aria-hidden="true" />
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">Early pattern</h3>
+          <p className="mt-1 text-sm text-muted-foreground">{message}</p>
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -373,7 +459,7 @@ function AnalyticsChart({
           <Bar dataKey="feedSessionCount" name="Sessions" fill="#10b981" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
-    ) : <EmptyChart label="No feeds logged in this range yet." />
+    ) : <EmptyChart label="No feeds logged in this range yet." helper="Log feeds as they happen; once there are a few sessions, this chart will show the day-to-day rhythm." />
   }
 
   if (category === 'feeds' && feedView === 'formula') {
@@ -393,7 +479,7 @@ function AnalyticsChart({
           <Area type="monotone" dataKey="formulaMl" name="Formula" stroke="#f59e0b" strokeWidth={2} fillOpacity={1} fill="url(#colorFormula)" />
         </AreaChart>
       </ResponsiveContainer>
-    ) : <EmptyChart label="No formula feeds logged in this range yet." />
+    ) : <EmptyChart label="No formula feeds logged in this range yet." helper="Formula volume appears here when bottle feeds are logged with ml amounts." />
   }
 
   if (category === 'feeds' && feedView === 'breast') {
@@ -421,7 +507,7 @@ function AnalyticsChart({
           />
         </AreaChart>
       </ResponsiveContainer>
-    ) : <EmptyChart label="No breast feeds logged in this range yet." />
+    ) : <EmptyChart label="No breast feeds logged in this range yet." helper="Breast duration and expressed breast milk share this view, so either kind of breast log will start the chart." />
   }
 
   if (category === 'nappies') {
@@ -437,7 +523,7 @@ function AnalyticsChart({
           <Bar dataKey="both" name="Both" stackId="nappy" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
-    ) : <EmptyChart label="No nappies logged in this range yet." />
+    ) : <EmptyChart label="No nappies logged in this range yet." helper="Wet, dirty, and both nappies will build the breakdown once changes are logged." />
   }
 
   return hasPumpData ? (
@@ -450,7 +536,7 @@ function AnalyticsChart({
         <Bar dataKey="pumpMl" name="Pumped" fill="#10b981" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
-  ) : <EmptyChart label="No pump sessions logged in this range yet." />
+  ) : <EmptyChart label="No pump sessions logged in this range yet." helper="Pump output is optional; log it only when it is useful for your household." />
 }
 
 function RangeFilters({ range, updateFilters }: { range: RangeOption; updateFilters: (next: Partial<{ range: RangeOption; category: CategoryOption; feedView: FeedViewOption }>) => void }) {
@@ -788,6 +874,8 @@ export function AnalyticsPanel({
     }
   }, [category, chartData, feedSessionTimestamps, feedView, previousData, range, selectedDays])
 
+  const allDataTotals = useMemo(() => sumData(data), [data])
+  const hasAnyTrackedData = totalTrackedEvents(allDataTotals) > 0
   const xInterval = range === '30d' && chartData.length > 12 ? 4 : 0
   const activeDayLabel = `${summary.activeDays} active ${summary.activeDays === 1 ? 'day' : 'days'}`
   const isCompact = variant === 'compact'
@@ -823,6 +911,8 @@ export function AnalyticsPanel({
           </a>
         </div>
 
+        {!hasAnyTrackedData && <FirstRunState />}
+        <LowDataState category={category} feedView={feedView} range={range} summary={summary} />
         <MobileSummaryCards category={category} feedView={feedView} range={range} summary={summary} />
         {range === '1d' && <TodayComparison summary={summary} />}
         {range === '1d' && <ParentCheckIn summary={summary} />}
@@ -843,6 +933,8 @@ export function AnalyticsPanel({
         <RangeFilters range={range} updateFilters={updateFilters} />
         <CategoryFilters category={category} updateFilters={updateFilters} />
         {category === 'feeds' && <FeedViewFilters feedView={feedView} updateFilters={updateFilters} />}
+        {!hasAnyTrackedData && <FirstRunState />}
+        <LowDataState category={category} feedView={feedView} range={range} summary={summary} />
         <MobileSummaryCards category={category} feedView={feedView} range={range} summary={summary} />
         {range === '1d' && <TodayComparison summary={summary} />}
         {range === '1d' && <ParentCheckIn summary={summary} />}
@@ -881,6 +973,8 @@ export function AnalyticsPanel({
           <div className="flex flex-col gap-4">
             <CategoryFilters category={category} updateFilters={updateFilters} />
             {category === 'feeds' && <FeedViewFilters feedView={feedView} updateFilters={updateFilters} />}
+            {!hasAnyTrackedData && <FirstRunState />}
+            <LowDataState category={category} feedView={feedView} range={range} summary={summary} />
             <DesktopMetricStrip category={category} range={range} summary={summary} />
 
             <section className="flex min-h-[440px] flex-col rounded-xl border border-muted bg-muted/10 p-4">

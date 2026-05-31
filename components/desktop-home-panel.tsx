@@ -35,21 +35,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import { MessSizeControl } from '@/components/logging/mess-size-control'
+import { NotePreview } from '@/components/logging/note-preview'
+import { TimestampControl } from '@/components/logging/timestamp-control'
+import { entryTone, feedAmount, feedKind, feedLabel, formatPumpDetail, formatSummaryMinutes, nappyLabel, type FeedKind } from '@/lib/entry-format'
+import { BOTTLE_ML_PRESETS, BREAST_FEED_PRESETS } from '@/lib/logging-options'
 import { formatAppDateTimeLocal, formatAppTime } from '@/lib/timezone'
 import type { AnalyticsDataPoint } from '@/lib/server/analytics-data'
 import type { HistoryItem } from '@/lib/server/history-data'
 import type { DailySummary, FeedEntry, NappyEntry, PumpEntry } from '@/lib/types'
-
-const BREAST_PRESETS = [5, 10, 15, 20, 25, 30]
-const BOTTLE_PRESETS = [30, 60, 90, 120, 150, 180]
-const MESS_SIZES = [
-  { value: '', label: 'n/a' },
-  { value: 'small', label: 'Small' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'large', label: 'Large' },
-] as const
-
-type FeedKind = 'breast' | 'expressed' | 'formula'
 
 interface DayNavigation {
   label: string
@@ -68,13 +62,6 @@ function formatTimeSince(date: Date | null, now: Date): string {
   const hours = Math.floor(diffMins / 60)
   const mins = diffMins % 60
   return `${hours}h ${mins}m`
-}
-
-function formatSummaryMinutes(minutes: number): string {
-  if (minutes < 60) return `${minutes}m`
-  const hours = Math.floor(minutes / 60)
-  const mins = minutes % 60
-  return mins ? `${hours}h ${mins}m` : `${hours}h`
 }
 
 function feedDueInfo(lastFeed: FeedEntry | null, feedingIntervalMinutes: number | undefined, now: Date) {
@@ -106,40 +93,6 @@ function feedDueInfo(lastFeed: FeedEntry | null, feedingIntervalMinutes: number 
     value: formatSummaryMinutes(minutesUntil),
     helper: `Due ${formatAppTime(dueAt)}`,
   }
-}
-
-function feedKind(feed: FeedEntry): FeedKind {
-  if (feed.type === 'formula') return 'formula'
-  return feed.volumeMl ? 'expressed' : 'breast'
-}
-
-function feedLabel(kind: FeedKind) {
-  if (kind === 'expressed') return 'Expressed feed'
-  if (kind === 'breast') return 'Breast feed'
-  return 'Formula'
-}
-
-function feedAmount(feed: FeedEntry) {
-  const kind = feedKind(feed)
-  if (kind === 'breast') return `${Math.floor((feed.durationSeconds || 0) / 60)}m`
-  return `${feed.volumeMl || 0}ml`
-}
-
-function nappyLabel(nappy: NappyEntry) {
-  return nappy.type === 'both' ? 'Wet + dirty' : nappy.type
-}
-
-function pumpDetail(pump: PumpEntry) {
-  return `${Math.round((pump.durationSeconds || 0) / 60)}m · ${pump.volumeMl ? `${pump.volumeMl}ml` : 'n/a'}`
-}
-
-function tone(kind: FeedKind | NappyEntry['type']) {
-  if (kind === 'breast') return 'text-sky-400'
-  if (kind === 'expressed') return 'text-cyan-400'
-  if (kind === 'formula') return 'text-amber-400'
-  if (kind === 'wet') return 'text-blue-400'
-  if (kind === 'dirty') return 'text-orange-400'
-  return 'text-violet-400'
 }
 
 function StatTile({ label, value, helper, emphasis = 'default' }: { label: string; value: string; helper?: string; emphasis?: 'default' | 'soon' | 'due' | 'overdue' }) {
@@ -360,16 +313,17 @@ function DesktopQuickLog({
           <h2 className="text-lg font-semibold text-foreground">Quick log</h2>
           <p className="text-sm text-muted-foreground">Inline desktop entry for the common actions.</p>
         </div>
-        <label className="flex min-w-[230px] flex-col gap-1 text-xs text-muted-foreground">
-          Timestamp
-          <input
-            type="datetime-local"
-            value={timestamp}
-            onChange={(event) => setTimestamp(event.target.value)}
-            disabled={pending}
-            className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-45"
-          />
-        </label>
+        <TimestampControl
+          label="Timestamp"
+          value={timestamp}
+          onChange={setTimestamp}
+          disabled={pending}
+          className="flex min-w-[230px] flex-col gap-1 text-xs text-muted-foreground"
+          inputClassName="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-45"
+          offsetClassName="mt-1 grid grid-cols-4 gap-1"
+          offsetButtonClassName="h-8 rounded-lg border text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-45"
+          compactOffsetLabels
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
@@ -377,7 +331,7 @@ function DesktopQuickLog({
           title="Breast"
           helper="Duration"
           accent="text-sky-400"
-          presets={BREAST_PRESETS}
+          presets={[...BREAST_FEED_PRESETS]}
           unit="min"
           timestamp={timestamp}
           disabled={pending}
@@ -387,7 +341,7 @@ function DesktopQuickLog({
           title="Milk"
           helper="Expressed feed"
           accent="text-cyan-400"
-          presets={BOTTLE_PRESETS}
+          presets={[...BOTTLE_ML_PRESETS]}
           unit="ml"
           timestamp={timestamp}
           disabled={pending}
@@ -397,7 +351,7 @@ function DesktopQuickLog({
           title="Formula"
           helper="Bottle volume"
           accent="text-amber-400"
-          presets={BOTTLE_PRESETS}
+          presets={[...BOTTLE_ML_PRESETS]}
           unit="ml"
           timestamp={timestamp}
           disabled={pending}
@@ -419,13 +373,14 @@ function DesktopQuickLog({
           <Droplets className="h-4 w-4 text-violet-400" aria-hidden="true" />
         </div>
         <div className="mb-3 grid grid-cols-[minmax(260px,0.7fr)_1fr] gap-2">
-          <div className="grid grid-cols-4 gap-1">
-            {MESS_SIZES.map(option => (
-              <button key={option.value || 'none'} type="button" onClick={() => setMessSize(option.value)} disabled={pending} className={`h-10 rounded-lg text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${messSize === option.value ? 'bg-violet-500 text-white' : 'bg-background text-muted-foreground hover:text-foreground'}`}>
-                {option.label}
-              </button>
-            ))}
-          </div>
+          <MessSizeControl
+            value={messSize}
+            onChange={setMessSize}
+            disabled={pending}
+            className="grid grid-cols-4 gap-1"
+            buttonClassName="h-10 rounded-lg text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45"
+            inactiveClassName="bg-background text-muted-foreground hover:text-foreground"
+          />
           <input type="text" value={notes} onChange={(event) => setNotes(event.target.value)} disabled={pending} maxLength={280} placeholder="Optional nappy note" className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground/50 disabled:cursor-not-allowed disabled:opacity-45" />
         </div>
         <div className="grid grid-cols-3 gap-2">
@@ -564,8 +519,11 @@ function FeedActivityRow({ feed, onChanged }: { feed: FeedEntry; onChanged: () =
   return (
     <div className="grid grid-cols-[82px_1fr_130px_112px] items-center gap-3 border-b border-muted/40 py-2 text-sm last:border-0">
       <span className="text-xs tabular-nums text-muted-foreground">{formatAppTime(feed.timestamp)}</span>
-      <span className="min-w-0 truncate font-medium text-foreground">{feedLabel(currentKind)}{feed.notes ? <span className="ml-2 font-normal text-muted-foreground">· {feed.notes}</span> : null}</span>
-      <span className={`text-right font-semibold tabular-nums ${tone(currentKind)}`}>{feedAmount(feed)}</span>
+      <div className="min-w-0 font-medium text-foreground">
+        <span className="block truncate">{feedLabel(currentKind)}</span>
+        <NotePreview note={feed.notes} className="mt-1" />
+      </div>
+      <span className={`text-right font-semibold tabular-nums ${entryTone(currentKind)}`}>{feedAmount(feed)}</span>
       <div className="flex justify-end gap-1">
         <button type="button" onClick={() => setEditing(true)} className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Edit feed">
           <Pencil className="h-4 w-4" />
@@ -637,13 +595,14 @@ function NappyActivityRow({ nappy, onChanged }: { nappy: NappyEntry; onChanged: 
           </button>
         </div>
         <div className="col-span-3 grid grid-cols-[240px_1fr] gap-2">
-          <div className="grid grid-cols-4 gap-1">
-            {MESS_SIZES.map(option => (
-              <button key={option.value || 'none'} type="button" onClick={() => setMessSize(option.value)} disabled={pending} className={`h-9 rounded-lg text-xs font-semibold transition-colors ${messSize === option.value ? 'bg-violet-500 text-white' : 'bg-background text-muted-foreground hover:text-foreground'}`}>
-                {option.label}
-              </button>
-            ))}
-          </div>
+          <MessSizeControl
+            value={messSize}
+            onChange={setMessSize}
+            disabled={pending}
+            className="grid grid-cols-4 gap-1"
+            buttonClassName="h-9 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+            inactiveClassName="bg-background text-muted-foreground hover:text-foreground"
+          />
           <input type="text" value={notes} onChange={(event) => setNotes(event.target.value)} disabled={pending} maxLength={280} placeholder="Note" className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground placeholder:text-muted-foreground/50" />
         </div>
       </div>
@@ -653,8 +612,11 @@ function NappyActivityRow({ nappy, onChanged }: { nappy: NappyEntry; onChanged: 
   return (
     <div className="grid grid-cols-[82px_1fr_130px_112px] items-center gap-3 border-b border-muted/40 py-2 text-sm last:border-0">
       <span className="text-xs tabular-nums text-muted-foreground">{formatAppTime(nappy.timestamp)}</span>
-      <span className="min-w-0 truncate font-medium text-foreground">{nappyLabel(nappy)} nappy{nappy.notes ? <span className="ml-2 font-normal text-muted-foreground">· {nappy.notes}</span> : null}</span>
-      <span className={`text-right font-semibold capitalize ${tone(nappy.type)}`}>{nappy.messSize ? `${nappy.messSize} mess` : nappy.type}</span>
+      <div className="min-w-0 font-medium text-foreground">
+        <span className="block truncate">{nappyLabel(nappy)} nappy</span>
+        <NotePreview note={nappy.notes} className="mt-1" />
+      </div>
+      <span className={`text-right font-semibold capitalize ${entryTone(nappy.type)}`}>{nappy.messSize ? `${nappy.messSize} mess` : nappy.type}</span>
       <div className="flex justify-end gap-1">
         <button type="button" onClick={() => setEditing(true)} className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Edit nappy">
           <Pencil className="h-4 w-4" />
@@ -737,8 +699,11 @@ function PumpActivityRow({ pump, onChanged }: { pump: PumpEntry; onChanged: () =
   return (
     <div className="grid grid-cols-[82px_1fr_130px_112px] items-center gap-3 border-b border-muted/40 py-2 text-sm last:border-0">
       <span className="text-xs tabular-nums text-muted-foreground">{formatAppTime(pump.timestamp)}</span>
-      <span className="min-w-0 truncate font-medium text-foreground">Pump session{pump.notes ? <span className="ml-2 font-normal text-muted-foreground">· {pump.notes}</span> : null}</span>
-      <span className="text-right font-semibold tabular-nums text-emerald-400">{pumpDetail(pump)}</span>
+      <div className="min-w-0 font-medium text-foreground">
+        <span className="block truncate">Pump session</span>
+        <NotePreview note={pump.notes} className="mt-1" />
+      </div>
+      <span className="text-right font-semibold tabular-nums text-emerald-400">{formatPumpDetail(pump)}</span>
       <div className="flex justify-end gap-1">
         <button type="button" onClick={() => setEditing(true)} className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Edit pump">
           <Pencil className="h-4 w-4" />
@@ -878,7 +843,7 @@ export function DesktopHomePanel({
     startTransition(async () => {
       try {
         await addNappyAction(formData)
-        setMessage(`${nappyLabel({ type, id: '', timestamp: new Date() })} nappy logged`)
+        setMessage(`${nappyLabel({ type })} nappy logged`)
         refresh()
       } finally {
         setPendingKey(null)
@@ -952,7 +917,7 @@ export function DesktopHomePanel({
         <StatTile
           label={dayNavigation.isToday ? 'Since pump' : 'Day pump'}
           value={dayNavigation.isToday ? formatTimeSince(overview.lastPump?.timestamp ?? null, now) : overview.dayLastPump ? formatAppTime(overview.dayLastPump.timestamp) : '--'}
-          helper={dayNavigation.isToday ? overview.lastPump ? pumpDetail(overview.lastPump) : undefined : overview.dayLastPump ? pumpDetail(overview.dayLastPump) : 'No pump'}
+          helper={dayNavigation.isToday ? overview.lastPump ? formatPumpDetail(overview.lastPump) : undefined : overview.dayLastPump ? formatPumpDetail(overview.dayLastPump) : 'No pump'}
         />
         <StatTile label={dayNavigation.isToday ? 'Today feeds' : 'Day feeds'} value={String(todaySummary.feedSessionCount)} helper={`${todaySummary.feedCount} feed entries`} />
         <StatTile label={dayNavigation.isToday ? 'Today nappies' : 'Day nappies'} value={String(todaySummary.nappyCount)} helper={`${todaySummary.wetCount} wet, ${todaySummary.dirtyCount} dirty`} />

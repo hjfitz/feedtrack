@@ -9,8 +9,9 @@ The product direction is strong: fast logging, calm analytics, private household
 - [done] Add a "logged just now" edit shortcut. Parents often remember "this happened 20 minutes ago" immediately after tapping.
 - [done] Improve timestamp ergonomics. Date/time inputs are accurate but fiddly on mobile; quick offsets like Now, -10m, -30m, and -1h help.
 - [done] Make recent activity more central on mobile. A compact recent list on Home helps parents confirm whether something was already logged.
-- [todo] Add stronger empty and low-data states, especially in Analytics, so new users know what to log before patterns appear.
-- [todo] Better surface notes without visual clutter. Longer notes should not dominate History rows.
+- [done] Logging foundations refactor. Shared logging options, timestamp offsets, optional notes, mess-size controls, and entry formatters now support Home, Desktop Home, and History.
+- [done] Add stronger empty and low-data states, especially in Analytics, so new users know what to log before patterns appear.
+- [done] Better surface notes without visual clutter. Longer notes are now shown behind compact expandable note chips in History and desktop recent activity rows.
 
 ## Design Language Evaluation
 Strengths:
@@ -44,3 +45,14 @@ Run a "sleepy parent" pass on Home: [done]
 
 ## Deferred Passes
 - [skipped] History/export pass: add a review-before-export screen with date range, included entry types, CSV preview, and cleaner note expansion in History. Deferred because export polish is less urgent than core daily-use improvements.
+
+## 3am Logging Popup Passes
+- [done] Highlight timestamp offset buttons and retain an active state after selection.
+- [done] Use friendlier offset copy such as "10 min ago" while keeping compact labels available for dense desktop controls.
+- [done] Reinforce timestamp controls near the final log action with compact "Logging time" summaries.
+- [done] Add selected-summary copy before logging where the flow has a final confirmation button.
+- [done] Make notes quieter in log popups by making the collapsed note affordance smaller and secondary.
+- [done] Improve nappy dialog hierarchy around the chosen nappy type and mess-size escape.
+- [done] Add last-logged context inside log popups.
+- [done] Reduce accidental exits from log flows with explicit back controls and no overlay/X dismissal on the nappy dialog.
+- [done] Clarify "Started" versus "Time" for breast feeds, pumps, bottles, and nappies.

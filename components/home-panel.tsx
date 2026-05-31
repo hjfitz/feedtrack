@@ -14,7 +14,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Spinner } from '@/components/ui/spinner'
-import { formatAppDateTimeLocal, formatAppTime } from '@/lib/timezone'
+import { MessSizeControl } from '@/components/logging/mess-size-control'
+import { OptionalNote } from '@/components/logging/optional-note'
+import { TimestampControl } from '@/components/logging/timestamp-control'
+import { formatFeedDetail, formatNappyDetail, formatPumpDetail, formatPumpVolume, formatSummaryMinutes } from '@/lib/entry-format'
+import { BOTTLE_ML_PRESETS, BREAST_FEED_PRESETS, PUMP_DURATION_PRESETS, PUMP_VOLUME_PRESETS } from '@/lib/logging-options'
+import { formatAppDate, formatAppDateTimeLocal, formatAppTime, parseAppDateTimeLocal } from '@/lib/timezone'
 import type { HistoryItem } from '@/lib/server/history-data'
 import type { DailySummary, FeedEntry, NappyEntry, PumpEntry } from '@/lib/types'
 
@@ -24,17 +29,6 @@ function formatTimeSince(date: Date | null, now: Date): string {
   const hours = Math.floor(diffMins / 60)
   const mins = diffMins % 60
   return `${hours}h ${mins}m`
-}
-
-function formatDurationMins(seconds: number): string {
-  return `${Math.floor(seconds / 60)}m`
-}
-
-function formatSummaryMinutes(minutes: number): string {
-  if (minutes < 60) return `${minutes}m`
-  const hours = Math.floor(minutes / 60)
-  const mins = minutes % 60
-  return mins ? `${hours}h ${mins}m` : `${hours}h`
 }
 
 function feedDueInfo(lastFeed: FeedEntry | null, feedingIntervalMinutes: number | undefined, now: Date) {
@@ -70,18 +64,6 @@ function feedDueInfo(lastFeed: FeedEntry | null, feedingIntervalMinutes: number 
   }
 }
 
-const BREAST_PRESETS = [5, 10, 15, 20, 25, 30]
-const FORMULA_PRESETS = [30, 60, 90, 120, 150, 180]
-const EXPRESSED_PRESETS = [30, 60, 90, 120, 150, 180]
-const PUMP_DURATION_PRESETS = [10, 15, 20, 25, 30, 40]
-const PUMP_VOLUME_PRESETS = [30, 60, 90, 120, 150, 180]
-const MESS_SIZES = [
-  { value: '', label: 'n/a' },
-  { value: 'small', label: 'Small' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'large', label: 'Large' },
-] as const
-
 type QuickLogMode = 'home' | 'breast' | 'expressed' | 'formula' | 'pump'
 type ConfirmationType = 'breast' | 'expressed' | 'formula' | 'pump' | 'wet' | 'dirty' | 'both' | null
 type AddedEntry = { type: 'feed' | 'nappy' | 'pump'; id: string } | null
@@ -97,25 +79,6 @@ interface DayNavigation {
   historyHref: string
 }
 
-function formatFeedDetail(feed: FeedEntry) {
-  if (feed.type === 'formula') return `Formula ${feed.volumeMl || 0}ml`
-  if (feed.volumeMl) return `Breast milk ${feed.volumeMl}ml`
-  return `Breast ${feed.durationSeconds ? formatDurationMins(feed.durationSeconds) : ''}`
-}
-
-function formatPumpVolume(volumeMl?: number) {
-  return volumeMl ? `${volumeMl}ml` : 'n/a'
-}
-
-function formatPumpDetail(pump: PumpEntry) {
-  return `${Math.round((pump.durationSeconds || 0) / 60)}m · ${formatPumpVolume(pump.volumeMl)}`
-}
-
-function formatNappyDetail(nappy: NappyEntry) {
-  const type = nappy.type === 'both' ? 'Wet + dirty' : nappy.type
-  return `${type}${nappy.messSize ? ` · ${nappy.messSize}` : ''}`
-}
-
 function dateFromKey(key: string) {
   const [year, month, day] = key.split('-').map(Number)
   return new Date(year, month - 1, day)
@@ -128,6 +91,103 @@ function keyFromDate(date: Date) {
 
 function hrefForDateKey(key: string, todayKey: string) {
   return key === todayKey ? '/' : `/?date=${key}`
+}
+
+function nappyTypeLabel(type: 'wet' | 'dirty' | 'both') {
+  if (type === 'both') return 'Wet + dirty'
+  return type[0].toUpperCase() + type.slice(1)
+}
+
+function describeLogTime(value: string) {
+  const timestamp = parseAppDateTimeLocal(value)
+  if (!timestamp) return 'Choose a time'
+
+  const diffMinutes = Math.round((Date.now() - timestamp.getTime()) / 60000)
+  const absoluteMinutes = Math.abs(diffMinutes)
+  const clock = formatAppTime(timestamp)
+
+  if (absoluteMinutes <= 2) return `Now · ${clock}`
+  if (diffMinutes > 0 && diffMinutes < 60) return `${diffMinutes} min ago · ${clock}`
+  if (diffMinutes > 0 && diffMinutes < 180) {
+    const hours = Math.floor(diffMinutes / 60)
+    const mins = diffMinutes % 60
+    return `${hours}h${mins ? ` ${mins}m` : ''} ago · ${clock}`
+  }
+  if (diffMinutes < 0 && absoluteMinutes < 180) return `In ${absoluteMinutes} min · ${clock}`
+
+  return `${formatAppDate(timestamp, { weekday: 'short', day: 'numeric', month: 'short' })} · ${clock}`
+}
+
+function LogTimeSummary({ value, tone = 'border-sky-500/25 bg-sky-500/10 text-sky-300' }: { value: string; tone?: string }) {
+  return (
+    <div className={`rounded-xl border px-3 py-2 text-center ${tone}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Logging time</p>
+      <p className="mt-0.5 text-sm font-bold tabular-nums text-foreground">{describeLogTime(value)}</p>
+    </div>
+  )
+}
+
+function LogFlowHeader({ title, subtitle, onBack }: { title: string; subtitle: string; onBack: () => void }) {
+  return (
+    <div className="grid grid-cols-[44px_1fr_44px] items-start gap-2">
+      <button
+        type="button"
+        onClick={onBack}
+        className="grid h-11 w-11 place-items-center rounded-xl border border-muted/50 bg-muted/20 text-muted-foreground transition-colors hover:bg-muted/35 hover:text-foreground"
+        aria-label="Back to home"
+        title="Back to home"
+      >
+        <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+      </button>
+      <div className="min-w-0 text-center">
+        <p className="text-xl font-semibold text-foreground">{title}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
+      </div>
+      <span aria-hidden="true" />
+    </div>
+  )
+}
+
+function LastLoggedHint({
+  label,
+  entry,
+  detail,
+  now,
+}: {
+  label: string
+  entry: { timestamp: Date } | null
+  detail?: string
+  now: Date
+}) {
+  return (
+    <div className="rounded-xl border border-muted/50 bg-muted/20 px-3 py-2 text-center">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Last {label}</p>
+      <p className="mt-0.5 text-sm font-bold text-foreground">
+        {entry ? `${formatTimeSince(entry.timestamp, now)} ago` : `No ${label} logged yet`}
+      </p>
+      {entry && detail && <p className="mt-0.5 truncate text-xs text-muted-foreground">{detail}</p>}
+    </div>
+  )
+}
+
+function ReadyToLogSummary({
+  label,
+  detail,
+  timestamp,
+  tone = 'border-sky-500/25 bg-sky-500/10',
+}: {
+  label: string
+  detail: string
+  timestamp: string
+  tone?: string
+}) {
+  return (
+    <div className={`rounded-xl border px-3 py-2 ${tone}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Ready to log</p>
+      <p className="mt-0.5 text-sm font-bold text-foreground">{label}</p>
+      <p className="mt-0.5 text-xs font-semibold tabular-nums text-muted-foreground">{detail} · {describeLogTime(timestamp)}</p>
+    </div>
+  )
 }
 
 export function HomePanel({
@@ -170,9 +230,6 @@ export function HomePanel({
   const [pumpTimestamp, setPumpTimestamp] = useState(() => formatAppDateTimeLocal(new Date()))
   const [nappyOpen, setNappyOpen] = useState(false)
   const [datePickerOpen, setDatePickerOpen] = useState(false)
-  const [showFeedDetails, setShowFeedDetails] = useState(false)
-  const [showPumpDetails, setShowPumpDetails] = useState(false)
-  const [showNappyDetails, setShowNappyDetails] = useState(false)
   const [nappyType, setNappyType] = useState<'wet' | 'dirty' | 'both'>('wet')
   const [nappyTimestamp, setNappyTimestamp] = useState(() => formatAppDateTimeLocal(new Date()))
   const [messSize, setMessSize] = useState('medium')
@@ -239,27 +296,6 @@ export function HomePanel({
     const key = keyFromDate(date)
     setDatePickerOpen(false)
     navigateTo(hrefForDateKey(key, dayNavigation.todayKey))
-  }
-
-  function setOffsetTimestamp(setter: (value: string) => void, minutesAgo: number) {
-    setter(formatAppDateTimeLocal(new Date(Date.now() - minutesAgo * 60000)))
-  }
-
-  function TimestampOffsets({ setter }: { setter: (value: string) => void }) {
-    return (
-      <div className="grid grid-cols-4 gap-2">
-        {[
-          { label: 'Now', value: 0 },
-          { label: '-10m', value: 10 },
-          { label: '-30m', value: 30 },
-          { label: '-1h', value: 60 },
-        ].map(option => (
-          <button key={option.label} type="button" onClick={() => setOffsetTimestamp(setter, option.value)} disabled={isLogging} className="h-10 rounded-xl bg-muted text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45">
-            {option.label}
-          </button>
-        ))}
-      </div>
-    )
   }
 
   async function undoLastEntry() {
@@ -333,8 +369,6 @@ export function HomePanel({
     setPumpTimestamp(formatAppDateTimeLocal(new Date()))
     setFeedNotes('')
     setPumpNotes('')
-    setShowFeedDetails(false)
-    setShowPumpDetails(false)
     setMode(nextMode)
   }
 
@@ -343,7 +377,6 @@ export function HomePanel({
     setNappyTimestamp(formatAppDateTimeLocal(new Date()))
     setMessSize('medium')
     setNappyNotes('')
-    setShowNappyDetails(false)
     setNappyOpen(true)
   }
 
@@ -365,7 +398,6 @@ export function HomePanel({
       setCustomExpressedMl('')
       setCustomFormulaMl('')
       setFeedNotes('')
-      setShowFeedDetails(false)
       setFeedTimestamp(formatAppDateTimeLocal(new Date()))
       setMode('home')
     })
@@ -385,7 +417,6 @@ export function HomePanel({
       setNappyTimestamp(formatAppDateTimeLocal(new Date()))
       setMessSize('medium')
       setNappyNotes('')
-      setShowNappyDetails(false)
     })
   }
 
@@ -404,7 +435,6 @@ export function HomePanel({
       setAddedEntry(entry)
       setPumpTimestamp(formatAppDateTimeLocal(new Date()))
       setPumpNotes('')
-      setShowPumpDetails(false)
       setMode('home')
     })
   }
@@ -446,24 +476,13 @@ export function HomePanel({
     if (mode === 'breast') {
       return (
         <div className="flex flex-col gap-6 px-1">
-          <div className="text-center">
-            <p className="text-xl font-semibold text-foreground">Breast feed</p>
-            <p className="text-muted-foreground text-sm mt-1">Select duration</p>
-          </div>
-          <div className="flex flex-col gap-2">
-            <label htmlFor="breast-feed-time" className="text-sm text-muted-foreground">Date & time</label>
-            <input id="breast-feed-time" type="datetime-local" value={feedTimestamp} onChange={(event) => setFeedTimestamp(event.target.value)} disabled={isLogging} className="h-12 rounded-xl bg-background border border-border px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
-            <TimestampOffsets setter={setFeedTimestamp} />
-          </div>
-          {showFeedDetails ? (
-            <textarea value={feedNotes} onChange={(event) => setFeedNotes(event.target.value)} disabled={isLogging} rows={2} maxLength={280} placeholder="Optional note" className="rounded-xl bg-background border border-border px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
-          ) : (
-            <button type="button" onClick={() => setShowFeedDetails(true)} disabled={isLogging} className="h-11 rounded-xl bg-muted text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-45">
-              Add note
-            </button>
-          )}
+          <LogFlowHeader title="Breast feed" subtitle="Select duration" onBack={() => setMode('home')} />
+          <LastLoggedHint label="feed" entry={lastFeed} detail={lastFeed ? formatFeedDetail(lastFeed) : undefined} now={now} />
+          <TimestampControl id="breast-feed-time" label="Started" value={feedTimestamp} onChange={setFeedTimestamp} disabled={isLogging} />
+          <OptionalNote value={feedNotes} onChange={setFeedNotes} disabled={isLogging} />
+          <LogTimeSummary value={feedTimestamp} />
           <div className="grid grid-cols-3 gap-3">
-            {BREAST_PRESETS.map(mins => (
+            {BREAST_FEED_PRESETS.map(mins => (
               <button key={mins} onClick={() => logFeed('breast', mins, 'duration')} disabled={!feedTimestamp || isLogging} className="py-7 rounded-2xl bg-sky-500/15 border-2 border-sky-500/30 text-sky-400 text-2xl font-bold transition-all duration-150 hover:bg-sky-500/25 hover:border-sky-500/50 hover:scale-[1.02] active:bg-sky-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
                 {mins}m
               </button>
@@ -480,8 +499,9 @@ export function HomePanel({
                 Log
               </button>
             </div>
+            <ReadyToLogSummary label="Breast feed" detail={canLogCustomBreast ? `${Math.round(customBreastValue)}m` : 'Enter custom minutes'} timestamp={feedTimestamp} />
           </form>
-          <button onClick={() => setMode('home')} className="text-muted-foreground py-4 text-base font-medium hover:text-foreground transition-colors">Cancel</button>
+          <button type="button" onClick={() => setMode('home')} className="self-center rounded-lg border border-muted/50 bg-muted/20 px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted/35 hover:text-foreground">Back to home</button>
         </div>
       )
     }
@@ -489,24 +509,13 @@ export function HomePanel({
     if (mode === 'expressed') {
       return (
         <div className="flex flex-col gap-6 px-1">
-          <div className="text-center">
-            <p className="text-xl font-semibold text-foreground">Breast milk</p>
-            <p className="text-muted-foreground text-sm mt-1">Select amount</p>
-          </div>
-          <div className="flex flex-col gap-2">
-            <label htmlFor="expressed-feed-time" className="text-sm text-muted-foreground">Date & time</label>
-            <input id="expressed-feed-time" type="datetime-local" value={feedTimestamp} onChange={(event) => setFeedTimestamp(event.target.value)} disabled={isLogging} className="h-12 rounded-xl bg-background border border-border px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
-            <TimestampOffsets setter={setFeedTimestamp} />
-          </div>
-          {showFeedDetails ? (
-            <textarea value={feedNotes} onChange={(event) => setFeedNotes(event.target.value)} disabled={isLogging} rows={2} maxLength={280} placeholder="Optional note" className="rounded-xl bg-background border border-border px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
-          ) : (
-            <button type="button" onClick={() => setShowFeedDetails(true)} disabled={isLogging} className="h-11 rounded-xl bg-muted text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-45">
-              Add note
-            </button>
-          )}
+          <LogFlowHeader title="Breast milk" subtitle="Select amount" onBack={() => setMode('home')} />
+          <LastLoggedHint label="feed" entry={lastFeed} detail={lastFeed ? formatFeedDetail(lastFeed) : undefined} now={now} />
+          <TimestampControl id="expressed-feed-time" label="Time" value={feedTimestamp} onChange={setFeedTimestamp} disabled={isLogging} inputClassName="h-12 rounded-xl border border-border bg-background px-4 text-sm text-foreground focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 disabled:cursor-not-allowed disabled:opacity-45" />
+          <OptionalNote value={feedNotes} onChange={setFeedNotes} disabled={isLogging} textareaClassName="rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 disabled:cursor-not-allowed disabled:opacity-45" />
+          <LogTimeSummary value={feedTimestamp} tone="border-cyan-500/25 bg-cyan-500/10 text-cyan-300" />
           <div className="grid grid-cols-3 gap-3">
-            {EXPRESSED_PRESETS.map(ml => (
+            {BOTTLE_ML_PRESETS.map(ml => (
               <button key={ml} onClick={() => logFeed('breast', ml, 'volume')} disabled={!feedTimestamp || isLogging} className="py-7 rounded-2xl bg-cyan-500/15 border-2 border-cyan-500/30 text-cyan-400 text-2xl font-bold transition-all duration-150 hover:bg-cyan-500/25 hover:border-cyan-500/50 hover:scale-[1.02] active:bg-cyan-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
                 {ml}
               </button>
@@ -523,8 +532,9 @@ export function HomePanel({
                 Log
               </button>
             </div>
+            <ReadyToLogSummary label="Breast milk" detail={canLogCustomExpressed ? `${Math.round(customExpressedValue)}ml` : 'Enter custom ml'} timestamp={feedTimestamp} tone="border-cyan-500/25 bg-cyan-500/10" />
           </form>
-          <button onClick={() => setMode('home')} className="text-muted-foreground py-4 text-base font-medium hover:text-foreground transition-colors">Cancel</button>
+          <button type="button" onClick={() => setMode('home')} className="self-center rounded-lg border border-muted/50 bg-muted/20 px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted/35 hover:text-foreground">Back to home</button>
         </div>
       )
     }
@@ -532,24 +542,13 @@ export function HomePanel({
     if (mode === 'formula') {
       return (
         <div className="flex flex-col gap-6 px-1">
-          <div className="text-center">
-            <p className="text-xl font-semibold text-foreground">Formula</p>
-            <p className="text-muted-foreground text-sm mt-1">Select amount</p>
-          </div>
-          <div className="flex flex-col gap-2">
-            <label htmlFor="formula-feed-time" className="text-sm text-muted-foreground">Date & time</label>
-            <input id="formula-feed-time" type="datetime-local" value={feedTimestamp} onChange={(event) => setFeedTimestamp(event.target.value)} disabled={isLogging} className="h-12 rounded-xl bg-background border border-border px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
-            <TimestampOffsets setter={setFeedTimestamp} />
-          </div>
-          {showFeedDetails ? (
-            <textarea value={feedNotes} onChange={(event) => setFeedNotes(event.target.value)} disabled={isLogging} rows={2} maxLength={280} placeholder="Optional note" className="rounded-xl bg-background border border-border px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
-          ) : (
-            <button type="button" onClick={() => setShowFeedDetails(true)} disabled={isLogging} className="h-11 rounded-xl bg-muted text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-45">
-              Add note
-            </button>
-          )}
+          <LogFlowHeader title="Formula" subtitle="Select amount" onBack={() => setMode('home')} />
+          <LastLoggedHint label="feed" entry={lastFeed} detail={lastFeed ? formatFeedDetail(lastFeed) : undefined} now={now} />
+          <TimestampControl id="formula-feed-time" label="Time" value={feedTimestamp} onChange={setFeedTimestamp} disabled={isLogging} inputClassName="h-12 rounded-xl border border-border bg-background px-4 text-sm text-foreground focus:border-amber-500/50 focus:outline-none focus:ring-2 focus:ring-amber-500/50 disabled:cursor-not-allowed disabled:opacity-45" />
+          <OptionalNote value={feedNotes} onChange={setFeedNotes} disabled={isLogging} textareaClassName="rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-amber-500/50 focus:outline-none focus:ring-2 focus:ring-amber-500/50 disabled:cursor-not-allowed disabled:opacity-45" />
+          <LogTimeSummary value={feedTimestamp} tone="border-amber-500/25 bg-amber-500/10 text-amber-300" />
           <div className="grid grid-cols-3 gap-3">
-            {FORMULA_PRESETS.map(ml => (
+            {BOTTLE_ML_PRESETS.map(ml => (
               <button key={ml} onClick={() => logFeed('formula', ml, 'volume')} disabled={!feedTimestamp || isLogging} className="py-7 rounded-2xl bg-amber-500/15 border-2 border-amber-500/30 text-amber-400 text-2xl font-bold transition-all duration-150 hover:bg-amber-500/25 hover:border-amber-500/50 hover:scale-[1.02] active:bg-amber-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
                 {ml}
               </button>
@@ -566,8 +565,9 @@ export function HomePanel({
                 Log
               </button>
             </div>
+            <ReadyToLogSummary label="Formula" detail={canLogCustomFormula ? `${Math.round(customFormulaValue)}ml` : 'Enter custom ml'} timestamp={feedTimestamp} tone="border-amber-500/25 bg-amber-500/10" />
           </form>
-          <button onClick={() => setMode('home')} className="text-muted-foreground py-4 text-base font-medium hover:text-foreground transition-colors">Cancel</button>
+          <button type="button" onClick={() => setMode('home')} className="self-center rounded-lg border border-muted/50 bg-muted/20 px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted/35 hover:text-foreground">Back to home</button>
         </div>
       )
     }
@@ -575,22 +575,10 @@ export function HomePanel({
     if (mode === 'pump') {
       return (
         <div className="flex flex-col gap-6 px-1">
-          <div className="text-center">
-            <p className="text-xl font-semibold text-foreground">Pump session</p>
-            <p className="text-muted-foreground text-sm mt-1">Record total time and milk</p>
-          </div>
-          <div className="flex flex-col gap-2">
-            <label htmlFor="pump-time" className="text-sm text-muted-foreground">Date & time</label>
-            <input id="pump-time" type="datetime-local" value={pumpTimestamp} onChange={(event) => setPumpTimestamp(event.target.value)} disabled={isLogging} className="h-12 rounded-xl bg-background border border-border px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
-            <TimestampOffsets setter={setPumpTimestamp} />
-          </div>
-          {showPumpDetails ? (
-            <textarea value={pumpNotes} onChange={(event) => setPumpNotes(event.target.value)} disabled={isLogging} rows={2} maxLength={280} placeholder="Optional note" className="rounded-xl bg-background border border-border px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
-          ) : (
-            <button type="button" onClick={() => setShowPumpDetails(true)} disabled={isLogging} className="h-11 rounded-xl bg-muted text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-45">
-              Add note
-            </button>
-          )}
+          <LogFlowHeader title="Pump session" subtitle="Record total time and milk" onBack={() => setMode('home')} />
+          <LastLoggedHint label="pump" entry={lastPump} detail={lastPump ? formatPumpDetail(lastPump) : undefined} now={now} />
+          <TimestampControl id="pump-time" label="Started" value={pumpTimestamp} onChange={setPumpTimestamp} disabled={isLogging} inputClassName="h-12 rounded-xl border border-border bg-background px-4 text-sm text-foreground focus:border-emerald-500/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-45" />
+          <OptionalNote value={pumpNotes} onChange={setPumpNotes} disabled={isLogging} textareaClassName="rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-emerald-500/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-45" />
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-3">
               <p className="text-sm text-muted-foreground">Duration</p>
@@ -624,10 +612,17 @@ export function HomePanel({
               </div>
             </div>
           </div>
+          <LogTimeSummary value={pumpTimestamp} tone="border-emerald-500/25 bg-emerald-500/10 text-emerald-300" />
+          <ReadyToLogSummary
+            label="Pump session"
+            detail={`${Number.isFinite(pumpMinutesValue) && pumpMinutesValue > 0 ? `${Math.round(pumpMinutesValue)}m` : 'Set duration'} · ${hasPumpVolume && Number.isFinite(pumpMlValue) && pumpMlValue > 0 ? `${Math.round(pumpMlValue)}ml` : 'volume n/a'}`}
+            timestamp={pumpTimestamp}
+            tone="border-emerald-500/25 bg-emerald-500/10"
+          />
           <button type="button" onClick={logPump} disabled={!canLogPump || isLogging} className="h-14 rounded-xl bg-emerald-500 text-white font-semibold hover:bg-emerald-400 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
             Log pump
           </button>
-          <button onClick={() => setMode('home')} className="text-muted-foreground py-4 text-base font-medium hover:text-foreground transition-colors">Cancel</button>
+          <button type="button" onClick={() => setMode('home')} className="self-center rounded-lg border border-muted/50 bg-muted/20 px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted/35 hover:text-foreground">Back to home</button>
         </div>
       )
     }
@@ -788,7 +783,7 @@ export function HomePanel({
         </div>
       </div>
     )
-  }, [canLogCustomBreast, canLogCustomExpressed, canLogCustomFormula, canLogPump, customBreastMinutes, customBreastValue, customExpressedMl, customExpressedValue, customFormulaMl, customFormulaValue, dayLastFeed, dayLastNappy, dayLastPump, dayNavigation, feedCardClass, feedLabelClass, feedNotes, feedTimestamp, isNavigating, isLogging, lastFeed, lastNappy, lastPump, mode, nextFeed, now, pumpMinutes, pumpMl, pumpNotes, pumpTimestamp, recentItems, showFeedDetails, showPumpDetails, summary])
+  }, [canLogCustomBreast, canLogCustomExpressed, canLogCustomFormula, canLogPump, customBreastMinutes, customBreastValue, customExpressedMl, customExpressedValue, customFormulaMl, customFormulaValue, dayLastFeed, dayLastNappy, dayLastPump, dayNavigation, feedCardClass, feedLabelClass, feedNotes, feedTimestamp, isNavigating, isLogging, lastFeed, lastNappy, lastPump, mode, nextFeed, now, pumpMinutes, pumpMl, pumpNotes, pumpTimestamp, recentItems, summary])
 
   return (
     <>
@@ -815,42 +810,57 @@ export function HomePanel({
         if (open) openNappyDialog()
         else setNappyOpen(false)
       }}>
-        <DialogContent>
+        <DialogContent showCloseButton={false} onInteractOutside={(event) => event.preventDefault()}>
           <form onSubmit={(event) => { event.preventDefault(); logNappy() }} className="flex flex-col gap-5">
             <DialogHeader>
-              <DialogTitle>Log nappy</DialogTitle>
+              <DialogTitle>Log {nappyTypeLabel(nappyType)} nappy</DialogTitle>
+              <DialogDescription>Change the type only if the first tap was wrong.</DialogDescription>
             </DialogHeader>
-            <div className="grid grid-cols-3 gap-2">
-              {(['wet', 'dirty', 'both'] as const).map(type => (
-                <button key={type} type="button" onClick={() => setNappyType(type)} disabled={isLogging} className={`h-12 rounded-xl text-sm font-semibold capitalize transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${nappyType === type ? 'bg-violet-500 text-white' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
-                  {type}
-                </button>
-              ))}
-            </div>
+            <LastLoggedHint label="nappy" entry={lastNappy} detail={lastNappy ? formatNappyDetail(lastNappy) : undefined} now={now} />
             <div className="flex flex-col gap-2">
-              <label htmlFor="nappy-time" className="text-sm text-muted-foreground">Date & time</label>
-              <input id="nappy-time" type="datetime-local" value={nappyTimestamp} onChange={(event) => setNappyTimestamp(event.target.value)} disabled={isLogging} className="h-12 rounded-xl bg-background border border-border px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
-              <TimestampOffsets setter={setNappyTimestamp} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <p className="text-sm text-muted-foreground">Mess size</p>
-              <div className="grid grid-cols-4 gap-2">
-                {MESS_SIZES.map(option => (
-                  <button key={option.value || 'none'} type="button" onClick={() => setMessSize(option.value)} disabled={isLogging} className={`h-11 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${messSize === option.value ? 'bg-violet-500 text-white' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
-                    {option.label}
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Type</p>
+              <div className="grid grid-cols-3 gap-2">
+                {(['wet', 'dirty', 'both'] as const).map(type => (
+                  <button key={type} type="button" onClick={() => setNappyType(type)} disabled={isLogging} className={`h-12 rounded-xl text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${nappyType === type ? 'bg-violet-500 text-white shadow-sm' : 'bg-muted/60 text-muted-foreground hover:text-foreground'}`}>
+                    {nappyTypeLabel(type)}
                   </button>
                 ))}
               </div>
             </div>
-            {showNappyDetails ? (
-              <textarea value={nappyNotes} onChange={(event) => setNappyNotes(event.target.value)} disabled={isLogging} rows={2} maxLength={280} placeholder="Optional note" className="rounded-xl bg-background border border-border px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 disabled:opacity-45 disabled:cursor-not-allowed" />
-            ) : (
-              <button type="button" onClick={() => setShowNappyDetails(true)} disabled={isLogging} className="h-11 rounded-xl bg-muted text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-45">
-                Add note
-              </button>
-            )}
+            <TimestampControl id="nappy-time" label="Time" value={nappyTimestamp} onChange={setNappyTimestamp} disabled={isLogging} inputClassName="h-12 rounded-xl border border-border bg-background px-4 text-sm text-foreground focus:border-violet-500/50 focus:outline-none focus:ring-2 focus:ring-violet-500/50 disabled:cursor-not-allowed disabled:opacity-45" />
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium text-muted-foreground">Mess size</p>
+                <button
+                  type="button"
+                  onClick={() => setMessSize('')}
+                  disabled={isLogging}
+                  className={`h-8 rounded-lg border px-3 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${messSize === '' ? 'border-violet-500/50 bg-violet-500/15 text-violet-200' : 'border-muted/50 bg-muted/20 text-muted-foreground hover:text-foreground'}`}
+                >
+                  Not sure
+                </button>
+              </div>
+              <MessSizeControl
+                value={messSize}
+                onChange={setMessSize}
+                disabled={isLogging}
+                className="grid grid-cols-3 gap-2"
+                buttonClassName="h-11 rounded-xl text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                activeClassName="bg-violet-500 text-white"
+                inactiveClassName="bg-muted text-muted-foreground hover:text-foreground"
+                excludeNone
+              />
+            </div>
+            <OptionalNote value={nappyNotes} onChange={setNappyNotes} disabled={isLogging} textareaClassName="rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-violet-500/50 focus:outline-none focus:ring-2 focus:ring-violet-500/50 disabled:cursor-not-allowed disabled:opacity-45" />
+            <LogTimeSummary value={nappyTimestamp} tone="border-violet-500/25 bg-violet-500/10 text-violet-300" />
+            <ReadyToLogSummary
+              label={`${nappyType === 'both' ? 'Wet + dirty' : nappyType} nappy`}
+              detail={messSize ? `${messSize} mess` : 'mess not sure'}
+              timestamp={nappyTimestamp}
+              tone="border-violet-500/25 bg-violet-500/10"
+            />
             <DialogFooter>
-              <button type="button" onClick={() => setNappyOpen(false)} disabled={isLogging} className="h-12 rounded-xl bg-muted px-5 text-sm font-semibold text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed">
+              <button type="button" onClick={() => setNappyOpen(false)} disabled={isLogging} className="h-12 rounded-xl border border-muted/50 bg-muted/20 px-5 text-sm font-semibold text-muted-foreground hover:bg-muted/35 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50">
                 Cancel
               </button>
               <button type="submit" disabled={!canLogNappy || isLogging} className="h-12 rounded-xl bg-violet-500 px-5 text-sm font-semibold text-white hover:bg-violet-400 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
