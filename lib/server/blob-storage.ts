@@ -16,6 +16,7 @@ export interface HouseholdMeta {
   babyName?: string
   babyDob?: string
   feedingIntervalMinutes?: number
+  pumpTrackingEnabled?: boolean
 }
 
 interface StoredHouseholdData {

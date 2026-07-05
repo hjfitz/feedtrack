@@ -293,11 +293,13 @@ function PumpLogSection({
 
 function DesktopQuickLog({
   pending,
+  pumpTrackingEnabled,
   onLogFeed,
   onLogNappy,
   onLogPump,
 }: {
   pending: boolean
+  pumpTrackingEnabled: boolean
   onLogFeed: (kind: FeedKind, amount: number, timestamp: string, notes: string) => void
   onLogNappy: (type: NappyEntry['type'], timestamp: string, messSize: string, notes: string) => void
   onLogPump: (durationMinutes: number, volumeMl: number | undefined, timestamp: string, notes: string) => void
@@ -326,7 +328,7 @@ function DesktopQuickLog({
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
+      <div className={`grid grid-cols-1 gap-3 ${pumpTrackingEnabled ? 'xl:grid-cols-4' : 'xl:grid-cols-3'}`}>
         <FeedLogSection
           title="Breast"
           helper="Duration"
@@ -357,7 +359,7 @@ function DesktopQuickLog({
           disabled={pending}
           onLog={(value) => onLogFeed('formula', value, timestamp, notes)}
         />
-        <PumpLogSection disabled={pending} timestamp={timestamp} onLog={(duration, volume) => onLogPump(duration, volume, timestamp, notes)} />
+        {pumpTrackingEnabled && <PumpLogSection disabled={pending} timestamp={timestamp} onLog={(duration, volume) => onLogPump(duration, volume, timestamp, notes)} />}
       </div>
 
       <div className="mt-3">
@@ -418,7 +420,7 @@ function ChartTooltip({
   )
 }
 
-function CompactAnalytics({ data }: { data: AnalyticsDataPoint[] }) {
+function CompactAnalytics({ data, pumpTrackingEnabled }: { data: AnalyticsDataPoint[]; pumpTrackingEnabled: boolean }) {
   const chartData = data.slice(-7)
   const totals = chartData.reduce(
     (sum, day) => ({
@@ -447,7 +449,7 @@ function CompactAnalytics({ data }: { data: AnalyticsDataPoint[] }) {
         <SummaryTile label="Nappies" value={String(totals.nappies)} className="text-violet-400" />
         <SummaryTile label="Formula" value={`${totals.formulaMl}ml`} className="text-amber-400" />
         <SummaryTile label="Breast" value={`${totals.breastMins}m`} className="text-sky-400" />
-        <SummaryTile label="Pumped" value={`${totals.pumpMl}ml`} className="text-emerald-400" />
+        {pumpTrackingEnabled && <SummaryTile label="Pumped" value={`${totals.pumpMl}ml`} className="text-emerald-400" />}
       </div>
       <div className="mt-4 h-52 rounded-lg border border-muted/50 bg-background/40 p-3">
         <ResponsiveContainer width="100%" height="100%">
@@ -735,7 +737,9 @@ function PumpActivityRow({ pump, onChanged }: { pump: PumpEntry; onChanged: () =
   )
 }
 
-function RecentActivity({ items, onChanged, dayLabel, detailsHref }: { items: HistoryItem[]; onChanged: () => void; dayLabel: string; detailsHref: string }) {
+function RecentActivity({ items, onChanged, dayLabel, detailsHref, pumpTrackingEnabled }: { items: HistoryItem[]; onChanged: () => void; dayLabel: string; detailsHref: string; pumpTrackingEnabled: boolean }) {
+  const visibleItems = pumpTrackingEnabled ? items : items.filter(item => item.type !== 'pump')
+
   return (
     <section className="rounded-xl border border-muted bg-muted/10 p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -754,10 +758,10 @@ function RecentActivity({ items, onChanged, dayLabel, detailsHref }: { items: Hi
         <span className="text-right">Actions</span>
       </div>
       <div className="max-h-[360px] overflow-y-auto">
-        {items.length === 0 ? (
+        {visibleItems.length === 0 ? (
           <div className="py-10 text-center text-sm text-muted-foreground">No entries for this day</div>
         ) : (
-          items.map(item => item.type === 'feed'
+          visibleItems.map(item => item.type === 'feed'
             ? <FeedActivityRow key={item.id} feed={item.data as FeedEntry} onChanged={onChanged} />
             : item.type === 'nappy'
               ? <NappyActivityRow key={item.id} nappy={item.data as NappyEntry} onChanged={onChanged} />
@@ -774,6 +778,7 @@ export function DesktopHomePanel({
   history,
   analytics,
   feedingIntervalMinutes,
+  pumpTrackingEnabled = true,
   dayNavigation,
 }: {
   overview: {
@@ -792,6 +797,7 @@ export function DesktopHomePanel({
     data: AnalyticsDataPoint[]
   }
   feedingIntervalMinutes?: number
+  pumpTrackingEnabled?: boolean
   dayNavigation: DayNavigation
 }) {
   const router = useRouter()
@@ -852,6 +858,7 @@ export function DesktopHomePanel({
   }
 
   function logPump(durationMinutes: number, volumeMl: number | undefined, timestamp: string, notes: string) {
+    if (!pumpTrackingEnabled) return
     const roundedDuration = Math.round(durationMinutes)
     const roundedVolume = typeof volumeMl === 'number' ? Math.round(volumeMl) : undefined
     const formData = new FormData()
@@ -902,7 +909,7 @@ export function DesktopHomePanel({
         )}
       </section>
 
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-6">
+      <section className={`grid grid-cols-2 gap-3 ${pumpTrackingEnabled ? 'xl:grid-cols-6' : 'xl:grid-cols-4'}`}>
         <StatTile
           label={dayNavigation.isToday ? 'Next feed' : 'Day feed'}
           value={dayNavigation.isToday ? nextFeed?.value ?? formatTimeSince(overview.lastFeed?.timestamp ?? null, now) : overview.dayLastFeed ? formatAppTime(overview.dayLastFeed.timestamp) : '--'}
@@ -914,14 +921,16 @@ export function DesktopHomePanel({
           value={dayNavigation.isToday ? formatTimeSince(overview.lastNappy?.timestamp ?? null, now) : overview.dayLastNappy ? formatAppTime(overview.dayLastNappy.timestamp) : '--'}
           helper={dayNavigation.isToday ? overview.lastNappy ? `${nappyLabel(overview.lastNappy)} nappy` : undefined : overview.dayLastNappy ? `${nappyLabel(overview.dayLastNappy)} nappy` : 'No nappy'}
         />
-        <StatTile
-          label={dayNavigation.isToday ? 'Since pump' : 'Day pump'}
-          value={dayNavigation.isToday ? formatTimeSince(overview.lastPump?.timestamp ?? null, now) : overview.dayLastPump ? formatAppTime(overview.dayLastPump.timestamp) : '--'}
-          helper={dayNavigation.isToday ? overview.lastPump ? formatPumpDetail(overview.lastPump) : undefined : overview.dayLastPump ? formatPumpDetail(overview.dayLastPump) : 'No pump'}
-        />
+        {pumpTrackingEnabled && (
+          <StatTile
+            label={dayNavigation.isToday ? 'Since pump' : 'Day pump'}
+            value={dayNavigation.isToday ? formatTimeSince(overview.lastPump?.timestamp ?? null, now) : overview.dayLastPump ? formatAppTime(overview.dayLastPump.timestamp) : '--'}
+            helper={dayNavigation.isToday ? overview.lastPump ? formatPumpDetail(overview.lastPump) : undefined : overview.dayLastPump ? formatPumpDetail(overview.dayLastPump) : 'No pump'}
+          />
+        )}
         <StatTile label={dayNavigation.isToday ? 'Today feeds' : 'Day feeds'} value={String(todaySummary.feedSessionCount)} helper={`${todaySummary.feedCount} feed entries`} />
         <StatTile label={dayNavigation.isToday ? 'Today nappies' : 'Day nappies'} value={String(todaySummary.nappyCount)} helper={`${todaySummary.wetCount} wet, ${todaySummary.dirtyCount} dirty`} />
-        <StatTile label={dayNavigation.isToday ? 'Today pump' : 'Day pump'} value={`${todaySummary.totalPumpMl}ml`} helper={`${todaySummary.pumpCount} sessions, ${todaySummary.totalPumpMinutes}m`} />
+        {pumpTrackingEnabled && <StatTile label={dayNavigation.isToday ? 'Today pump' : 'Day pump'} value={`${todaySummary.totalPumpMl}ml`} helper={`${todaySummary.pumpCount} sessions, ${todaySummary.totalPumpMinutes}m`} />}
       </section>
 
       {message && (
@@ -934,11 +943,11 @@ export function DesktopHomePanel({
       )}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <DesktopQuickLog pending={isLogging} onLogFeed={logFeed} onLogNappy={logNappy} onLogPump={logPump} />
-        <CompactAnalytics data={analytics.data} />
+        <DesktopQuickLog pending={isLogging} pumpTrackingEnabled={pumpTrackingEnabled} onLogFeed={logFeed} onLogNappy={logNappy} onLogPump={logPump} />
+        <CompactAnalytics data={analytics.data} pumpTrackingEnabled={pumpTrackingEnabled} />
       </div>
 
-      <RecentActivity items={history.items} onChanged={refresh} dayLabel={dayNavigation.label} detailsHref={dayNavigation.historyHref} />
+        <RecentActivity items={history.items} onChanged={refresh} dayLabel={dayNavigation.label} detailsHref={dayNavigation.historyHref} pumpTrackingEnabled={pumpTrackingEnabled} />
     </div>
   )
 }

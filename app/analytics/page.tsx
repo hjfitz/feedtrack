@@ -20,14 +20,17 @@ export default async function AnalyticsPage({
     getAnalyticsPanelData(householdId),
     getHouseholdMeta(householdId),
   ])
+  const pumpTrackingEnabled = meta?.pumpTrackingEnabled !== false
+  const requestedCategory = validAnalyticsCategory(params.category)
 
   return (
     <AppShell babyName={meta?.babyName} babyDob={meta?.babyDob}>
       <AnalyticsPanel
         {...analyticsData}
         initialRange={validAnalyticsRange(params.range)}
-        initialCategory={validAnalyticsCategory(params.category)}
+        initialCategory={!pumpTrackingEnabled && requestedCategory === 'pumps' ? 'feeds' : requestedCategory}
         initialFeedView={validAnalyticsFeedView(params.feed)}
+        pumpTrackingEnabled={pumpTrackingEnabled}
       />
     </AppShell>
   )

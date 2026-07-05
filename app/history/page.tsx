@@ -12,8 +12,10 @@ export default async function HistoryPage({
 }) {
   const householdId = await requireSessionHouseholdId()
   const params = await searchParams
-  const type = validHistoryType(params.type)
   const meta = await getHouseholdMeta(householdId)
+  const pumpTrackingEnabled = meta?.pumpTrackingEnabled !== false
+  const requestedType = validHistoryType(params.type)
+  const type = !pumpTrackingEnabled && requestedType === 'pumps' ? 'all' : requestedType
   const today = startOfAppDay()
   const todayKey = appDateKey(today)
   const fallbackMinDate = addAppDays(today, -60)
@@ -35,7 +37,7 @@ export default async function HistoryPage({
 
   return (
     <AppShell babyName={meta?.babyName} babyDob={meta?.babyDob}>
-      <HistoryPanel {...historyData} selectedDate={selectedDateMeta} />
+      <HistoryPanel {...historyData} selectedDate={selectedDateMeta} pumpTrackingEnabled={pumpTrackingEnabled} />
     </AppShell>
   )
 }

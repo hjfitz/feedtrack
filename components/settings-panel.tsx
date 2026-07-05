@@ -8,10 +8,12 @@ function BabyDetailsForm({
   babyName,
   babyDob,
   feedingIntervalMinutes,
+  pumpTrackingEnabled,
 }: {
   babyName: string
   babyDob: string
   feedingIntervalMinutes: number | ''
+  pumpTrackingEnabled: boolean
 }) {
   const [state, action] = useActionState(updateBabyDetailsAction, { error: '' })
 
@@ -38,6 +40,14 @@ function BabyDetailsForm({
         </div>
         <p className="text-xs text-muted-foreground">Used for the next feed estimate on the home screen.</p>
       </div>
+
+      <label htmlFor="pump-tracking-enabled" className="flex items-start gap-3 rounded-xl border border-border bg-background/60 px-4 py-3">
+        <input id="pump-tracking-enabled" name="pumpTrackingEnabled" type="checkbox" defaultChecked={pumpTrackingEnabled} className="mt-1 h-4 w-4 rounded border-border accent-sky-500" />
+        <span>
+          <span className="block text-sm font-medium text-foreground">Track pumping</span>
+          <span className="mt-1 block text-xs text-muted-foreground">Show pump logging, summaries, and pump pattern cards.</span>
+        </span>
+      </label>
 
       <button type="submit" className="h-12 w-full rounded-xl bg-sky-500 text-white font-medium flex items-center justify-center gap-2 hover:bg-sky-400 active:scale-[0.98] transition-all">
         <Baby className="h-4 w-4" aria-hidden="true" />
@@ -147,6 +157,7 @@ export function SettingsPanel({
   babyName,
   babyDob,
   feedingIntervalMinutes,
+  pumpTrackingEnabled,
   isAccountSession,
   username,
 }: {
@@ -154,6 +165,7 @@ export function SettingsPanel({
   babyName: string
   babyDob: string
   feedingIntervalMinutes: number | ''
+  pumpTrackingEnabled: boolean
   isAccountSession: boolean
   username: string
 }) {
@@ -174,7 +186,7 @@ export function SettingsPanel({
           <p className="text-sm text-muted-foreground mt-1">Shown on the home screen header.</p>
         </div>
 
-        <BabyDetailsForm babyName={babyName} babyDob={babyDob} feedingIntervalMinutes={feedingIntervalMinutes} />
+        <BabyDetailsForm babyName={babyName} babyDob={babyDob} feedingIntervalMinutes={feedingIntervalMinutes} pumpTrackingEnabled={pumpTrackingEnabled} />
       </section>
 
       <section className="rounded-xl bg-muted/40 border border-muted p-4">

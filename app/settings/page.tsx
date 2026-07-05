@@ -15,6 +15,7 @@ export default async function SettingsPage() {
         babyName={meta?.babyName || ''}
         babyDob={meta?.babyDob || ''}
         feedingIntervalMinutes={meta?.feedingIntervalMinutes || ''}
+        pumpTrackingEnabled={meta?.pumpTrackingEnabled !== false}
         isAccountSession={Boolean(session.username)}
         username={session.username || ''}
       />

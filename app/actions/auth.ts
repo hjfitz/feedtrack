@@ -113,6 +113,7 @@ export async function updateBabyDetailsAction(_state: AuthFormState, formData: F
   const babyName = getString(formData, 'babyName').trim()
   const babyDob = getString(formData, 'babyDob')
   const feedingIntervalValue = getString(formData, 'feedingIntervalMinutes')
+  const pumpTrackingEnabled = getString(formData, 'pumpTrackingEnabled') === 'on'
 
   try {
     if (babyDob) {
@@ -133,6 +134,7 @@ export async function updateBabyDetailsAction(_state: AuthFormState, formData: F
       babyName: babyName || undefined,
       babyDob: babyDob || undefined,
       feedingIntervalMinutes: feedingIntervalMinutes ? Math.round(feedingIntervalMinutes) : undefined,
+      pumpTrackingEnabled,
     })
     revalidatePath('/')
     revalidatePath('/settings')

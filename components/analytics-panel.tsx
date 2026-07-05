@@ -551,13 +551,21 @@ function RangeFilters({ range, updateFilters }: { range: RangeOption; updateFilt
   )
 }
 
-function CategoryFilters({ category, updateFilters }: { category: CategoryOption; updateFilters: (next: Partial<{ range: RangeOption; category: CategoryOption; feedView: FeedViewOption }>) => void }) {
+function CategoryFilters({
+  category,
+  updateFilters,
+  pumpTrackingEnabled,
+}: {
+  category: CategoryOption
+  updateFilters: (next: Partial<{ range: RangeOption; category: CategoryOption; feedView: FeedViewOption }>) => void
+  pumpTrackingEnabled: boolean
+}) {
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className={`grid gap-2 ${pumpTrackingEnabled ? 'grid-cols-3' : 'grid-cols-2'}`}>
       {[
         { value: 'feeds', label: 'Feeds', icon: GlassWater, active: 'bg-amber-500/10 border-amber-500/40 text-amber-400' },
         { value: 'nappies', label: 'Nappies', icon: Baby, active: 'bg-violet-500/10 border-violet-500/40 text-violet-400' },
-        { value: 'pumps', label: 'Pumps', icon: Droplets, active: 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' },
+        ...(pumpTrackingEnabled ? [{ value: 'pumps', label: 'Pumps', icon: Droplets, active: 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' }] : []),
       ].map(option => {
         const Icon = option.icon
         const isActive = category === option.value
@@ -780,6 +788,7 @@ export function AnalyticsPanel({
   initialCategory,
   initialFeedView,
   variant = 'full',
+  pumpTrackingEnabled = true,
 }: {
   data: AnalyticsDataPoint[]
   hourlyData: AnalyticsDataPoint[]
@@ -790,12 +799,13 @@ export function AnalyticsPanel({
   initialCategory: CategoryOption
   initialFeedView: FeedViewOption
   variant?: 'full' | 'compact'
+  pumpTrackingEnabled?: boolean
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [mounted, setMounted] = useState(false)
   const [range, setRange] = useState<RangeOption>(initialRange)
-  const [category, setCategory] = useState<CategoryOption>(initialCategory)
+  const [category, setCategory] = useState<CategoryOption>(!pumpTrackingEnabled && initialCategory === 'pumps' ? 'feeds' : initialCategory)
   const [feedView, setFeedView] = useState<FeedViewOption>(initialFeedView)
 
   useEffect(() => {
@@ -804,7 +814,8 @@ export function AnalyticsPanel({
 
   function updateFilters(next: Partial<{ range: RangeOption; category: CategoryOption; feedView: FeedViewOption }>) {
     const nextRange = next.range ?? range
-    const nextCategory = next.category ?? category
+    const requestedCategory = next.category ?? category
+    const nextCategory = !pumpTrackingEnabled && requestedCategory === 'pumps' ? 'feeds' : requestedCategory
     const nextFeedView = next.feedView ?? feedView
     setRange(nextRange)
     setCategory(nextCategory)
@@ -931,7 +942,7 @@ export function AnalyticsPanel({
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 lg:hidden">
         <RangeFilters range={range} updateFilters={updateFilters} />
-        <CategoryFilters category={category} updateFilters={updateFilters} />
+        <CategoryFilters category={category} updateFilters={updateFilters} pumpTrackingEnabled={pumpTrackingEnabled} />
         {category === 'feeds' && <FeedViewFilters feedView={feedView} updateFilters={updateFilters} />}
         {!hasAnyTrackedData && <FirstRunState />}
         <LowDataState category={category} feedView={feedView} range={range} summary={summary} />
@@ -971,7 +982,7 @@ export function AnalyticsPanel({
 
         <div className="grid grid-cols-[minmax(0,1fr)_minmax(280px,360px)] gap-4">
           <div className="flex flex-col gap-4">
-            <CategoryFilters category={category} updateFilters={updateFilters} />
+            <CategoryFilters category={category} updateFilters={updateFilters} pumpTrackingEnabled={pumpTrackingEnabled} />
             {category === 'feeds' && <FeedViewFilters feedView={feedView} updateFilters={updateFilters} />}
             {!hasAnyTrackedData && <FirstRunState />}
             <LowDataState category={category} feedView={feedView} range={range} summary={summary} />

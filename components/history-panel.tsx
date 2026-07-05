@@ -363,6 +363,7 @@ export function HistoryPanel({
   exportHref,
   selectedDate,
   variant = 'full',
+  pumpTrackingEnabled = true,
 }: {
   items: HistoryItem[]
   groupedItems: { date: string; items: HistoryItem[] }[]
@@ -371,8 +372,15 @@ export function HistoryPanel({
   exportHref: string
   selectedDate?: { key: string; label: string }
   variant?: 'full' | 'compact'
+  pumpTrackingEnabled?: boolean
 }) {
   const isCompact = variant === 'compact'
+  const visibleItems = pumpTrackingEnabled ? items : items.filter(item => item.type !== 'pump')
+  const visibleGroups = pumpTrackingEnabled
+    ? groupedItems
+    : groupedItems
+      .map(group => ({ ...group, items: group.items.filter(item => item.type !== 'pump') }))
+      .filter(group => group.items.length > 0)
 
   return (
     <div className="flex flex-col h-full min-h-0 gap-4">
@@ -388,7 +396,7 @@ export function HistoryPanel({
         </div>
       ) : <div className="flex flex-col gap-3">
         <div className="flex gap-2">
-          {(['all', 'feeds', 'nappies', 'pumps'] as FilterType[]).map(filter => (
+          {(['all', 'feeds', 'nappies', ...(pumpTrackingEnabled ? ['pumps' as const] : [])] as FilterType[]).map(filter => (
             <Link key={filter} href={filterHref(filter, range, selectedDate?.key)} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors capitalize text-center ${type === filter ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground'}`}>
               {filter}
             </Link>
@@ -415,11 +423,11 @@ export function HistoryPanel({
       </div>}
 
       <div className="flex-1 overflow-y-auto min-h-0">
-        {items.length === 0 ? (
+        {visibleItems.length === 0 ? (
           <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">No entries in this time range</div>
         ) : (
           <div className="flex flex-col gap-4">
-            {groupedItems.map(group => (
+            {visibleGroups.map(group => (
               <div key={group.date}>
                 <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2 sticky top-0 bg-background py-1">{group.date}</p>
                 <div className="rounded-xl bg-muted/30 px-4 divide-y divide-muted/50">

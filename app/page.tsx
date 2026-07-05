@@ -16,6 +16,7 @@ export default async function HomePage({
   const householdId = await requireSessionHouseholdId()
   const params = await searchParams
   const meta = await getHouseholdMeta(householdId)
+  const pumpTrackingEnabled = meta?.pumpTrackingEnabled !== false
   const today = startOfAppDay()
   const todayKey = appDateKey(today)
   const fallbackMinDate = addAppDays(today, -60)
@@ -47,13 +48,14 @@ export default async function HomePage({
   return (
     <AppShell babyName={meta?.babyName} babyDob={meta?.babyDob}>
       <div className="lg:hidden">
-        <HomePanel {...data} recentItems={historyData.items.slice(0, 4)} feedingIntervalMinutes={meta?.feedingIntervalMinutes} dayNavigation={dayNavigation} />
+        <HomePanel {...data} recentItems={historyData.items.slice(0, 4)} feedingIntervalMinutes={meta?.feedingIntervalMinutes} pumpTrackingEnabled={pumpTrackingEnabled} dayNavigation={dayNavigation} />
       </div>
       <DesktopHomePanel
         overview={data}
         history={historyData}
         analytics={analyticsData}
         feedingIntervalMinutes={meta?.feedingIntervalMinutes}
+        pumpTrackingEnabled={pumpTrackingEnabled}
         dayNavigation={dayNavigation}
       />
     </AppShell>
