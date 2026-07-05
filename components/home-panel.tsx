@@ -62,7 +62,7 @@ function feedDueInfo(lastFeed: FeedEntry | null, feedingIntervalMinutes: number 
   }
 }
 
-type QuickLogMode = 'home' | 'breast' | 'expressed' | 'formula' | 'pump'
+type QuickLogMode = 'home' | 'feed-choice' | 'breast' | 'expressed' | 'formula' | 'pump'
 type ConfirmationType = 'breast' | 'expressed' | 'formula' | 'pump' | 'wet' | 'dirty' | 'both' | null
 type AddedEntry = { type: 'feed' | 'nappy' | 'pump'; id: string } | null
 
@@ -379,7 +379,7 @@ export function HomePanel({
     })
   }
 
-  function showFeedMode(nextMode: Exclude<QuickLogMode, 'home'>) {
+  function showFeedMode(nextMode: Exclude<QuickLogMode, 'home' | 'feed-choice'>) {
     if (nextMode === 'pump' && !pumpTrackingEnabled) return
     setFeedTimestamp(formatAppDateTimeLocal(new Date()))
     setPumpTimestamp(formatAppDateTimeLocal(new Date()))
@@ -480,6 +480,29 @@ export function HomePanel({
   }
 
   const mainContent = useMemo(() => {
+    if (mode === 'feed-choice') {
+      return (
+        <div className="flex flex-col gap-6 px-1">
+          <LogFlowHeader title="Feed" subtitle="Choose what to log" onBack={() => setMode('home')} />
+          <div className="grid grid-cols-1 gap-3">
+            <button type="button" onClick={() => showFeedMode('breast')} disabled={isLogging} className="flex h-20 min-w-0 flex-col items-center justify-center rounded-xl bg-sky-500/15 border-2 border-sky-500/30 px-1 text-sky-400 transition-all duration-150 hover:bg-sky-500/25 hover:border-sky-500/50 hover:scale-[1.01] active:bg-sky-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+              <span className="text-lg font-bold">Breast</span>
+              <span className="text-xs font-medium text-muted-foreground">duration</span>
+            </button>
+            <button type="button" onClick={() => showFeedMode('expressed')} disabled={isLogging} className="flex h-20 min-w-0 flex-col items-center justify-center rounded-xl bg-cyan-500/15 border-2 border-cyan-500/30 px-1 text-cyan-400 transition-all duration-150 hover:bg-cyan-500/25 hover:border-cyan-500/50 hover:scale-[1.01] active:bg-cyan-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+              <span className="text-lg font-bold">Milk</span>
+              <span className="text-xs font-medium text-muted-foreground">expressed feed</span>
+            </button>
+            <button type="button" onClick={() => showFeedMode('formula')} disabled={isLogging} className="flex h-20 min-w-0 flex-col items-center justify-center rounded-xl bg-amber-500/15 border-2 border-amber-500/30 px-1 text-amber-400 transition-all duration-150 hover:bg-amber-500/25 hover:border-amber-500/50 hover:scale-[1.01] active:bg-amber-500/35 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:scale-100">
+              <span className="text-lg font-bold">Formula</span>
+              <span className="text-xs font-medium text-muted-foreground">bottle</span>
+            </button>
+          </div>
+          <button type="button" onClick={() => setMode('home')} className="self-center rounded-lg border border-muted/50 bg-muted/20 px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted/35 hover:text-foreground">Back to home</button>
+        </div>
+      )
+    }
+
     if (mode === 'breast') {
       return (
         <div className="flex flex-col gap-6 px-1">
@@ -653,7 +676,7 @@ export function HomePanel({
           )}
         </div>
         <div className={`grid gap-2 sm:gap-3 ${pumpTrackingEnabled ? 'grid-cols-3' : 'grid-cols-2'}`}>
-          <div className={`min-w-0 rounded-2xl p-3 text-center border transition-colors sm:p-4 ${dayNavigation.isToday ? feedCardClass : 'border-sky-500/20 bg-sky-500/10'}`}>
+          <button type="button" onClick={() => setMode('feed-choice')} disabled={isLogging || isNavigating} className={`min-w-0 rounded-2xl p-3 text-center border transition-all hover:scale-[1.01] active:scale-[0.98] disabled:cursor-not-allowed disabled:hover:scale-100 sm:p-4 ${dayNavigation.isToday ? feedCardClass : 'border-sky-500/20 bg-sky-500/10'}`}>
             <p className={`mb-1 text-[10px] font-semibold uppercase tracking-wide sm:text-xs ${dayNavigation.isToday ? feedLabelClass : 'text-sky-300'}`}>Feed</p>
             <p className="whitespace-nowrap text-lg font-bold text-foreground tabular-nums sm:text-3xl">
               {dayNavigation.isToday
@@ -664,8 +687,8 @@ export function HomePanel({
             <p className="mt-1 whitespace-nowrap text-[10px] text-muted-foreground sm:text-xs">
               {dayNavigation.isToday ? lastTimeLabel(lastFeed, 'feed') : lastTimeLabel(dayLastFeed, 'feed')}
             </p>
-          </div>
-          <div className="min-w-0 rounded-2xl bg-violet-500/10 p-3 text-center border border-violet-500/20 sm:p-4">
+          </button>
+          <button type="button" onClick={() => openNappyDialog('wet')} disabled={isLogging || isNavigating} className="min-w-0 rounded-2xl bg-violet-500/10 p-3 text-center border border-violet-500/20 transition-all hover:scale-[1.01] active:scale-[0.98] disabled:cursor-not-allowed disabled:hover:scale-100 sm:p-4">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-violet-300 sm:text-xs">Nappy</p>
             <p className="whitespace-nowrap text-xl font-bold text-foreground tabular-nums sm:text-3xl">
               {dayNavigation.isToday ? formatTimeSince(lastNappy?.timestamp ?? null, now) : dayLastNappy ? formatAppTime(dayLastNappy.timestamp) : '--'}
@@ -673,9 +696,9 @@ export function HomePanel({
             <p className="mt-1 whitespace-nowrap text-[10px] text-muted-foreground sm:text-xs">
               {dayNavigation.isToday ? lastTimeLabel(lastNappy, 'nappy') : lastTimeLabel(dayLastNappy, 'nappy')}
             </p>
-          </div>
+          </button>
           {pumpTrackingEnabled && (
-            <div className="min-w-0 rounded-2xl bg-emerald-500/10 p-3 text-center border border-emerald-500/20 sm:p-4">
+            <button type="button" onClick={() => showFeedMode('pump')} disabled={isLogging || isNavigating} className="min-w-0 rounded-2xl bg-emerald-500/10 p-3 text-center border border-emerald-500/20 transition-all hover:scale-[1.01] active:scale-[0.98] disabled:cursor-not-allowed disabled:hover:scale-100 sm:p-4">
               <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300 sm:text-xs">Pump</p>
               <p className="whitespace-nowrap text-xl font-bold text-foreground tabular-nums sm:text-3xl">
                 {dayNavigation.isToday ? formatTimeSince(lastPump?.timestamp ?? null, now) : dayLastPump ? formatAppTime(dayLastPump.timestamp) : '--'}
@@ -683,7 +706,7 @@ export function HomePanel({
               <p className="mt-1 whitespace-nowrap text-[10px] text-muted-foreground sm:text-xs">
                 {dayNavigation.isToday ? lastTimeLabel(lastPump, 'pump') : lastTimeLabel(dayLastPump, 'pump')}
               </p>
-            </div>
+            </button>
           )}
         </div>
         <RecentActivity />

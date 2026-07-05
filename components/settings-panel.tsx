@@ -1,19 +1,17 @@
 'use client'
 
 import { useActionState, useEffect, useRef, useState } from 'react'
-import { Baby, Copy, KeyRound, LockKeyhole, LogOut, RefreshCw } from 'lucide-react'
-import { changePasswordAction, createHouseholdAccountAction, generateInviteAction, joinWithCodeAction, logoutAction, updateBabyDetailsAction } from '@/app/actions/auth'
+import { Baby, CheckSquare, Copy, KeyRound, LockKeyhole, LogOut, RefreshCw } from 'lucide-react'
+import { changePasswordAction, createHouseholdAccountAction, generateInviteAction, joinWithCodeAction, logoutAction, updateBabyDetailsAction, updateTrackablesAction } from '@/app/actions/auth'
 
 function BabyDetailsForm({
   babyName,
   babyDob,
   feedingIntervalMinutes,
-  pumpTrackingEnabled,
 }: {
   babyName: string
   babyDob: string
   feedingIntervalMinutes: number | ''
-  pumpTrackingEnabled: boolean
 }) {
   const [state, action] = useActionState(updateBabyDetailsAction, { error: '' })
 
@@ -41,6 +39,22 @@ function BabyDetailsForm({
         <p className="text-xs text-muted-foreground">Used for the next feed estimate on the home screen.</p>
       </div>
 
+      <button type="submit" className="h-12 w-full rounded-xl bg-sky-500 text-white font-medium flex items-center justify-center gap-2 hover:bg-sky-400 active:scale-[0.98] transition-all">
+        <Baby className="h-4 w-4" aria-hidden="true" />
+        Save baby details
+      </button>
+    </form>
+  )
+}
+
+function TrackablesForm({ pumpTrackingEnabled }: { pumpTrackingEnabled: boolean }) {
+  const [state, action] = useActionState(updateTrackablesAction, { error: '' })
+
+  return (
+    <form action={action} className="flex flex-col gap-3">
+      {state.error && <div className="rounded-xl bg-red-500/15 border border-red-500/30 px-4 py-3 text-red-400 text-sm">{state.error}</div>}
+      {state.success && <div className="rounded-xl bg-sky-500/15 border border-sky-500/30 px-4 py-3 text-sky-400 text-sm">{state.success}</div>}
+
       <label htmlFor="pump-tracking-enabled" className="flex items-start gap-3 rounded-xl border border-border bg-background/60 px-4 py-3">
         <input id="pump-tracking-enabled" name="pumpTrackingEnabled" type="checkbox" defaultChecked={pumpTrackingEnabled} className="mt-1 h-4 w-4 rounded border-border accent-sky-500" />
         <span>
@@ -50,8 +64,8 @@ function BabyDetailsForm({
       </label>
 
       <button type="submit" className="h-12 w-full rounded-xl bg-sky-500 text-white font-medium flex items-center justify-center gap-2 hover:bg-sky-400 active:scale-[0.98] transition-all">
-        <Baby className="h-4 w-4" aria-hidden="true" />
-        Save baby details
+        <CheckSquare className="h-4 w-4" aria-hidden="true" />
+        Save trackables
       </button>
     </form>
   )
@@ -186,7 +200,16 @@ export function SettingsPanel({
           <p className="text-sm text-muted-foreground mt-1">Shown on the home screen header.</p>
         </div>
 
-        <BabyDetailsForm babyName={babyName} babyDob={babyDob} feedingIntervalMinutes={feedingIntervalMinutes} pumpTrackingEnabled={pumpTrackingEnabled} />
+        <BabyDetailsForm babyName={babyName} babyDob={babyDob} feedingIntervalMinutes={feedingIntervalMinutes} />
+      </section>
+
+      <section className="rounded-xl bg-muted/40 border border-muted p-4">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-foreground">Trackables</h2>
+          <p className="text-sm text-muted-foreground mt-1">Choose which logging areas are useful for this household.</p>
+        </div>
+
+        <TrackablesForm pumpTrackingEnabled={pumpTrackingEnabled} />
       </section>
 
       <section className="rounded-xl bg-muted/40 border border-muted p-4">

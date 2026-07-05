@@ -113,7 +113,6 @@ export async function updateBabyDetailsAction(_state: AuthFormState, formData: F
   const babyName = getString(formData, 'babyName').trim()
   const babyDob = getString(formData, 'babyDob')
   const feedingIntervalValue = getString(formData, 'feedingIntervalMinutes')
-  const pumpTrackingEnabled = getString(formData, 'pumpTrackingEnabled') === 'on'
 
   try {
     if (babyDob) {
@@ -134,7 +133,7 @@ export async function updateBabyDetailsAction(_state: AuthFormState, formData: F
       babyName: babyName || undefined,
       babyDob: babyDob || undefined,
       feedingIntervalMinutes: feedingIntervalMinutes ? Math.round(feedingIntervalMinutes) : undefined,
-      pumpTrackingEnabled,
+      pumpTrackingEnabled: meta?.pumpTrackingEnabled,
     })
     revalidatePath('/')
     revalidatePath('/settings')
@@ -143,4 +142,26 @@ export async function updateBabyDetailsAction(_state: AuthFormState, formData: F
   }
 
   return { error: '', success: 'Baby details saved' }
+}
+
+export async function updateTrackablesAction(_state: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  try {
+    const householdId = await requireSessionHouseholdId()
+    const meta = await getHouseholdMeta(householdId)
+    await setHouseholdMeta(householdId, {
+      inviteCode: meta?.inviteCode || '',
+      babyName: meta?.babyName,
+      babyDob: meta?.babyDob,
+      feedingIntervalMinutes: meta?.feedingIntervalMinutes,
+      pumpTrackingEnabled: getString(formData, 'pumpTrackingEnabled') === 'on',
+    })
+    revalidatePath('/')
+    revalidatePath('/history')
+    revalidatePath('/analytics')
+    revalidatePath('/settings')
+  } catch (error) {
+    return formError(error)
+  }
+
+  return { error: '', success: 'Trackables saved' }
 }
