@@ -162,7 +162,7 @@ function LogTimePicker({
   }
 
   return (
-    <div className={`rounded-xl border px-3 py-3 ${tone}`}>
+    <div className={`min-w-0 rounded-xl border px-3 py-3 ${tone}`}>
       <label htmlFor={id} className="block text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         Logging time
       </label>
@@ -172,7 +172,7 @@ function LogTimePicker({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
-        className={`mt-2 h-12 w-full rounded-xl border border-border bg-background px-3 text-center text-sm font-bold tabular-nums text-foreground focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-45 ${focusTone}`}
+        className={`mt-2 h-12 w-full min-w-0 max-w-full rounded-xl border border-border bg-background px-2 text-center text-sm font-bold tabular-nums text-foreground focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-45 ${focusTone}`}
       />
       <p className="mt-2 text-center text-xs font-semibold tabular-nums text-muted-foreground">{describeLogTime(value)}</p>
       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -831,7 +831,7 @@ export function HomePanel({
         if (open) openNappyDialog()
         else setNappyOpen(false)
       }}>
-        <DialogContent showCloseButton={false} onInteractOutside={(event) => event.preventDefault()}>
+        <DialogContent showCloseButton={false} onOpenAutoFocus={(event) => event.preventDefault()} onInteractOutside={(event) => event.preventDefault()}>
           <form onSubmit={(event) => { event.preventDefault(); logNappy() }} className="flex flex-col gap-5">
             <DialogHeader>
               <DialogTitle>Log {nappyTypeLabel(nappyType)} nappy</DialogTitle>
